@@ -5,10 +5,6 @@
 # PetTrack
 # ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-Projects/Debug/
-Projects/Release/
-
-
 
 ### VisualStudioCode ###
 .vscode/*
