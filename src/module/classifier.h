@@ -9,6 +9,28 @@
 	#include "WProgram.h"
 #endif
 
+// Posture Transition Class
+struct transition
+{
+public:
+    enum class label
+    {
+        Unknown,
+        SiSt,
+        StSi,
+        LySi,
+        SiLy,
+        SiWk,
+        WkSi
+    };
+
+public:
+    label lbl = label::Unknown;
+
+public:
+
+};
+
 class classifier
 {
 public:

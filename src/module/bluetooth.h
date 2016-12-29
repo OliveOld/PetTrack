@@ -9,10 +9,13 @@
     #include "WProgram.h"
 #endif
 
-class bluetooth
+class bluetooth : SoftwareSerial
 {
 public:
-    void init();
+    u8 send_pin, recv_pin;
+public:
+    bluetooth(u8 _send, u8 _recv);
+    void init(u32 baud);
 };
 
 #endif
