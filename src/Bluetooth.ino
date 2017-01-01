@@ -19,14 +19,14 @@
 
 namespace pets
 {
-    bluetooth bt{};
+    olive::bluetooth bt{4,5};
 }
 
 void setup() noexcept
 {
     using namespace pets;
-
-    bt.init();
+    auto baud = u32{ 9600 };
+    bt.init(baud);
 }
 
 void loop() noexcept

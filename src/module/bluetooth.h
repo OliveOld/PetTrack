@@ -8,15 +8,35 @@
 #else
     #include "WProgram.h"
 #endif
+#include <SoftwareSerial.h>
 
-class bluetooth : SoftwareSerial
+namespace olive
 {
-public:
-    u8 send_pin, recv_pin;
-public:
-    bluetooth(u8 _send, u8 _recv);
-    void init(u32 baud);
-};
+    class bluetooth final: 
+            public SoftwareSerial
+    {
+    public:
+        bluetooth(u8 _send, u8 _recv);
+        void init(u32 baud);
+    };
+
+}
+
+namespace olive
+{
+    bluetooth::bluetooth(u8 _send, u8 _recv) :
+        SoftwareSerial(_recv, _send)
+    {
+
+    }
+
+    void bluetooth::init(u32 baud)
+    {
+        this->begin(baud);
+    }
+
+
+}
 
 #endif
 

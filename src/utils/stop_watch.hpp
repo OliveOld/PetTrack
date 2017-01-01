@@ -9,8 +9,6 @@
 	#include "WProgram.h"
 #endif
 
-//#include "./alias.h"
-
 class stop_watch
 {
     u32 start = millis();

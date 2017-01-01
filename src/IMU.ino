@@ -15,22 +15,23 @@
 //      - Acquiring all kinds of values
 //
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
-#include "./module/imu_sensor.h"
+
+#include "./module/mpu9250.h"
 
 namespace pets
 {
-    imu_sensor imu9550{};
+    olive::mpu9250 imu{};
 }
 
 void setup() noexcept
 {
     using namespace pets;
 
-    imu9550.init();
+    imu.init();
 }
 
 void loop() noexcept
 {
     using namespace pets;
-
+    imu.update();
 }
