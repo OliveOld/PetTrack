@@ -3,42 +3,40 @@
 #include "Arduino.h"
 
 #include "./alias.h"
+#include "./module/mpu9250.h"
 
 namespace pets
 {
-
-    struct Sample
+    struct SampleData
     {
-        f32 data[6]{};
-
-    public:
-        Sample() noexcept = default;
-        Sample(const Sample& _rhs) noexcept
-        {
-            memcpy(this->data, _rhs.data, sizeof(f32) * 6);
-        };
-        Sample& operator=(const Sample& _rhs) noexcept
-        {
-            memcpy(this->data, _rhs.data, sizeof(f32) * 6);
-            return *this;
-        }
+        f32 ax, ay, az;
+        f32 gx, gy, gz;
     };
 
-    Stream& operator << (Stream& _out, const pets::Sample& _smp) noexcept
+    Stream& print(Stream& _out, SampleData& buf) 
     {
-        _out.print(_smp.data[0]);
-        _out.print(", ");
-        _out.print(_smp.data[1]);
-        _out.print(", ");
-        _out.print(_smp.data[2]);
-        _out.print(", ");
-        _out.print(_smp.data[3]);
-        _out.print(", ");
-        _out.print(_smp.data[4]);
-        _out.print(", ");
-        _out.print(_smp.data[5]);
+        static constexpr auto pad = " ";
+        _out.print(buf.ax); _out.print(pad);
+        _out.print(buf.ay); _out.print(pad);
+        _out.print(buf.az); _out.print(pad);
+        _out.print(buf.gx); _out.print(pad);
+        _out.print(buf.gy); _out.print(pad);
+        _out.print(buf.gz);
         return _out;
     }
+
+    SampleData sanpshot(olive::mpu9250& _mpu)
+    {
+        SampleData smp{};
+        smp.ax = _mpu.ax;
+        smp.ay = _mpu.ay;
+        smp.az = _mpu.az;
+        smp.gx = _mpu.gx;
+        smp.gy = _mpu.gy;
+        smp.gz = _mpu.gz;
+        return smp;
+    }
+
 }
 
 #endif

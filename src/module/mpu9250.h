@@ -11,16 +11,14 @@
 #include "../alias.h"
 
 //#include <i2c_MPU9250.h>
-#include <MPU9250.h>
+#include "../extlib/MPU9250.h"
 
 namespace olive
 {
 
     class mpu9250
     {
-        MPU9250 mpu{};          // I2C-Sensor-Lib_iLib 
-        f32     measure[6]{};   // buffer for measurements
-        
+        MPU9250 mpu{};
     public:
         // - Note
         //      Initialize external library
@@ -30,25 +28,14 @@ namespace olive
         //      Update measurements in buffer
         void update() noexcept;
 
+    public:
         // - Note
-        //      Copy of acc-X value 
-        f32   ax()      const noexcept;
-        // - Note
-        //      Copy of acc-Y value 
-        f32   ay()      const noexcept;
-        // - Note
-        //      Copy of acc-Z value 
-        f32   az()      const noexcept;
+        //      Copy of acc-X,Y,Z value 
+        f32   ax, ay, az;
 
         // - Note
-        //      Copy of gyro-X value 
-        f32   gx() const noexcept;
-        // - Note
-        //      Copy of gyro-Y value 
-        f32   gy() const noexcept;
-        // - Note
-        //      Copy of gyro-Z value 
-        f32   gz() const noexcept;
+        //      Copy of gyro-X,Y,Z value 
+        f32   gx, gy, gz;
 
     };
 
@@ -63,48 +50,19 @@ namespace olive
 
     inline void mpu9250::update() noexcept
     {
-        i16 acc[3]{};
-        i16 gyro[3]{};
+        // for raw data
+        i16 r_ax, r_ay, r_az;
+        i16 r_gx, r_gy, r_gz;
 
-        mpu.getMotion6(acc + 0, acc + 1, acc + 2,
-                       gyro + 0, gyro + 1, gyro + 2);
+        mpu.getMotion6(&r_ax, &r_ay, &r_az, &r_gx, &r_gy, &r_gz);
 
-        measure[0] = f32(acc[0]) / f32(16384.0);
-        measure[1] = f32(acc[1]) / f32(16384.0);
-        measure[2] = f32(acc[2]) / f32(16384.0);
-        measure[3] = f32(gyro[3]) * 250 / f32(32768.0);
-        measure[4] = f32(gyro[4]) * 250 / f32(32768.0);
-        measure[5] = f32(gyro[5]) * 250 / f32(32768.0);
-    }
+        ax = static_cast<double>(r_ax) / 16384;
+        ay = static_cast<double>(r_ay) / 16384;
+        az = static_cast<double>(r_az) / 16384;
 
-    inline f32 mpu9250::ax() const noexcept
-    {
-        return measure[0];
-    }
-
-    inline f32 mpu9250::ay() const noexcept
-    {
-        return measure[1];
-    }
-
-    inline f32 mpu9250::az() const noexcept
-    {
-        return measure[2];
-    }
-
-    inline f32 mpu9250::gx() const noexcept
-    {
-        return measure[3];
-    }
-
-    inline f32 mpu9250::gy() const noexcept
-    {
-        return measure[4];
-    }
-
-    inline f32 mpu9250::gz() const noexcept
-    {
-        return measure[5];
+        gx = static_cast<double>(r_gx) * 250 / 32768;
+        gy = static_cast<double>(r_gy) * 250 / 32768;
+        gz = static_cast<double>(r_gz) * 250 / 32768;
     }
 
 
