@@ -25,7 +25,7 @@ namespace olive
 namespace olive
 {
     bluetooth::bluetooth(u8 _send, u8 _recv) :
-        SoftwareSerial(_send, _recv)
+        SoftwareSerial(_recv, _send)
     {
 
     }

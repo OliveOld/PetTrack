@@ -86,6 +86,7 @@
     <ClInclude Include="..\src\module\mpu9250.h" />
     <ClInclude Include="..\src\Sample.h" />
     <ClInclude Include="..\src\utils\stop_watch.hpp" />
+    <ClInclude Include="__vm\.src.vsarduino.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\src\extlib\I2Cdev.cpp" />

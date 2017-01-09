@@ -43,8 +43,8 @@ static constexpr u32  looptime = sec / hz; // milisec time for 1 loop
 
 static constexpr auto buf_size = hz;       // Sampling capacity.
 
-// D4 : Arduino << Bluetooth(Tx)
-// D3 : Arduino >> Bluetooth(Rx)
+// D4 : Arduino(recv) << Bluetooth(Tx)
+// D3 : Arduino(send) >> Bluetooth(Rx)
 static constexpr u8 rxPin = 4;
 static constexpr u8 txPin = 3;
 
@@ -95,13 +95,13 @@ void setup()
 	Wire.begin();
     
     bth.begin(baud);
-    //Serial.begin(baud);
+    Serial.begin(baud);
 
     led13.init();
     mpu.init();
 
     delay(1000);
-    //Serial.println("Setup Done");
+    Serial.println("Setup Done");
 }
 
 // - Pattern
@@ -142,8 +142,9 @@ void loop()
         led13.on();
         //for (int i = 0; i < buf_size; ++i) {
             print(bth, sample);
-            bth.println();
-            //print(Serial, buffer[i]);
+            bth.print('\n');
+            //bth.println();
+            //print(Serial, sample);
             //Serial.println();
         //}
         delay(1);
