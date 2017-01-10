@@ -139,7 +139,7 @@ void loop()
     //{
         watch.reset();
 
-        led13.on();
+        //led13.on();
         //for (int i = 0; i < buf_size; ++i) {
             print(bth, sample);
             bth.print('\n');
@@ -150,7 +150,7 @@ void loop()
         delay(1);
         bth.flush();
         //Serial.flush();
-        led13.off();
+        //led13.off();
 
         Serial.println(watch.reset());
     //}
