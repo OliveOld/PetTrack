@@ -1,9 +1,11 @@
 #pragma once
 #include <Arduino.h>
 
+using duration = u32;
+
 class stop_watch
 {
-    u32 start = millis();
+    duration start = millis();
 public:
     stop_watch() = default;
 
@@ -11,10 +13,10 @@ public:
     //      Acquire elapsed time in millisecond
     // - See Also
     //      `millis()`
-    u32 pick() const noexcept
+    duration pick() const noexcept
     {
-        static constexpr u32 max = -1;
-        const auto curr = millis();
+        //static constexpr u32 max = -1;
+        const duration curr = millis();
 
         //// overflow
         //if (curr < start) {
@@ -25,9 +27,9 @@ public:
     // - Note
     //      Acquire elapsed time and reset the stop watch
     //      Millisecond
-    u32 reset() noexcept
+    duration reset() noexcept
     {
-        auto span = pick();
+        duration span = pick();
         start = millis();
         return span;
     }
