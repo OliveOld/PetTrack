@@ -1,13 +1,5 @@
-// stop_watch.h
-
-#ifndef _STOP_WATCH_h
-#define _STOP_WATCH_h
-
-#if defined(ARDUINO) && ARDUINO >= 100
-	#include "arduino.h"
-#else
-	#include "WProgram.h"
-#endif
+#pragma once
+#include <Arduino.h>
 
 class stop_watch
 {
@@ -23,11 +15,10 @@ public:
     {
         static constexpr u32 max = -1;
         const auto curr = millis();
-        
-        // overflow
-        if (curr < start) { 
-            return (max - start) + curr;
-        }
+
+        //// overflow
+        //if (curr < start) {
+        //}
         return curr - start;    // elapsed
     }
 
@@ -42,6 +33,4 @@ public:
     }
 
 };
-
-#endif
 
