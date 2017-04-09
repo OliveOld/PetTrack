@@ -1,4 +1,11 @@
 
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+void blinkBatteryLevel();
+void print(float x, float y, float z);
+float SVM(float x, float y, float z);
+
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+
 class stop_watch
 {
     unsigned int start;
@@ -35,6 +42,8 @@ class stop_watch
     }
 };
 
+stop_watch timer;
+
 struct Unit
 {
     float x, y, z;
@@ -44,6 +53,48 @@ struct Unit
         x = y = z = 0;
     }
 };
+
+Unit ma;
+
+class UnitGroup
+{
+  public:
+    uint8_t idx;
+    Unit buf[10];
+
+  public:
+  private:
+    void next()
+    {
+        idx = (idx + 1) % 10;
+    }
+
+  public:
+    void clear()
+    {
+        idx = 0;
+        for (int i = 0; i < 10; ++i)
+        {
+            buf[i].x = buf[i].y = buf[i].z = 0;
+        }
+    }
+    void emplace(float x, float y, float z)
+    {
+        buf[idx].x = x;
+        buf[idx].y = y;
+        buf[idx].z = z;
+        next();
+    }
+    double SMA()
+    {
+        double sma = 0;
+        for (int i = 0; i < 10; ++i)
+        {
+            sma = sma + abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
+        }
+        return sma;
+    }
+}
 
 // - Note
 //      3-Axis Low Pass Filter
@@ -78,50 +129,47 @@ class LPF3A
     }
 };
 
+LPF3A filter;
+
 class Pets
 {
   public:
+    UnitGroup grp;
     unsigned char Hz;
     unsigned int time[6]; // unsigned int per Postures
 
+  public:
     Pets()
     {
-        this->resetAll();
+        this->clear();
     }
-    void resetAll()
+
+    void clear()
     {
-        Hz = 10;
+        Hz = 2;
         for (int i = 0; i < 6; ++i)
         {
             time[i] = 0;
         }
-    }
-    // - Note
-    //      Report current state
-    // - Return
-    //      true  : successfully reported
-    //      false : failed to report
-    bool report()
-    {
-        Serial.print("Hz : ");
-        Serial.println(Hz);
-        for (int i = 0; i < 6; ++i)
-        {
-            Serial.print("Posture ");
-            Serial.print(i);
-            Serial.print(" : ");
-            unsigned int t = time[i];
-            Serial.println(t);
-        }
-        Serial.flush();
-        return true;
+        grp.clear();
     }
 
     // - Note
     //      Detect posture from Linear acceleration
     int posture(float ax, float ay, float az)
     {
-        return 0;
+        grp.emplace(ax, ay, az);
+        if(grp.SMA() > 250){
+            return 2;
+        }
+        else if (SVM(ax, ay, az) > 100)
+        {
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
     }
 
     // - Note
@@ -131,17 +179,6 @@ class Pets
         return 0;
     }
 
-    void slower(unsigned char minHz)
-    {
-        if (Hz > minHz)
-            Hz -= 1;
-    }
-    void faster(unsigned char maxHz)
-    {
-        if (Hz < maxHz)
-            Hz += 1;
-    }
-
     // - Note
     //      Add specific posture's unsigned int
     void record(int pos, unsigned int d)
@@ -149,36 +186,66 @@ class Pets
         int idx = pos;
         time[idx] += d;
     }
+
+    // - Note
+    //      Report current state
+    // - Return
+    //      true  : successfully reported
+    //      false : failed to report
+    bool report()
+    {
+        // Serial.print("Hz : ");
+        // Serial.println(Hz);
+        for (int i = 0; i < 6; ++i)
+        {
+            Serial.print(i);
+            Serial.print(" : ");
+            Serial.println(time[i]);
+        }
+        Serial.flush();
+        delay(5);
+        return true;
+    }
 };
 
-LPF3A       filter;
-stop_watch  timer;
-Unit        ma;
-Pets        pets;
+Pets pets;
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
-void blinkBatteryLevel();
-void print(float x, float y, float z);
 
 void setup()
 {
-    filter.alpha = 0.7;
-
-    pets.resetAll();
-    Bean.setAccelerationRange(4);
     Serial.begin(9600);
+    Bean.setAccelerationRange(4);
+    pets.clear();
+    filter.alpha = 0.7;
 }
+
+void onConnect();
+void onNoConnect();
 
 void loop()
 {
     timer.reset();
-    if (Bean.getConnectionState() == false)
-    {
-        blinkBatteryLevel();
-        Bean.sleep(2000);
-        return;
-    }
+    if (Bean.getConnectionState() == true)
+        // Connected. Make report
+        onConnect();
+    else
+        // Not connected
+        onNoConnect();
+}
 
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+
+void onConnect()
+{
+    pets.report();
+    pets.clear();
+    blinkBatteryLevel();
+    Bean.sleep(2000);
+}
+
+void onNoConnect()
+{
     Bean.setLed(0, 0, 255);
     ma.x = Bean.getAccelerationX();
     ma.y = Bean.getAccelerationY();
@@ -192,7 +259,7 @@ void loop()
     int pos = pets.posture(la.x, la.y, la.z);
     pets.orientation(g.x, g.y, g.z);
     pets.record(pos, timer.pick());
-    
+
     {
         print(ma.x, ma.y, ma.z);
         print(la.x, la.y, la.z);
@@ -201,10 +268,14 @@ void loop()
         pets.report();
     }
 
-    Bean.sleep(500);
+    {
+        // Sleep to save power
+        unsigned int rate = (1000 / pets.Hz);
+        unsigned int elapsed = timer.pick();
+        if (elapsed < rate)
+            Bean.sleep(rate - elapsed);
+    }
 }
-
-// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 void blinkBatteryLevel()
 {
@@ -242,4 +313,9 @@ void print(float x, float y, float z)
     Serial.print(",");
     Serial.print(z);
     Serial.print("}");
+}
+
+float SVM(float x, float y, float z)
+{
+    return sqrt(x * x + y * y + z * z);
 }
