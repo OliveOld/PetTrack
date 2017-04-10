@@ -127,9 +127,22 @@ class LPF3A
 #define REPORT 1
 #define MONITOR 2
 
-uint8_t fdummy()
-{
-    blinkBatteryLevel();
+uint8_t Blue(){
+    Bean.setLedBlue(255);
+    Bean.sleep(100);
+    Bean.setLed(0,0,0);
+    return MONITOR;
+}
+uint8_t Red(){
+    Bean.setLedRed(255);
+    Bean.sleep(100);
+    Bean.setLed(0,0,0);
+    return MONITOR;
+}
+uint8_t Green(){
+    Bean.setLedGreen(255);
+    Bean.sleep(100);
+    Bean.setLed(0,0,0);
     return MONITOR;
 }
 
@@ -143,7 +156,9 @@ struct State
     State()
     {
         // Prevent nullptr : Battery notification
-        pfInput = pfUpdate = pfOutput = fdummy;
+        pfInput = Blue;
+        pfUpdate = Green;
+        pfOutput = Red;
     }
 };
 
