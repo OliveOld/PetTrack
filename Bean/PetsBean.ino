@@ -6,6 +6,8 @@ float SVM(float x, float y, float z);
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
+// - Note
+//      Simple timer for Arduino
 class stop_watch
 {
     unsigned int start;
@@ -15,25 +17,18 @@ class stop_watch
     {
         start = millis();
     };
-
     // - Note
     //      Acquire elapsed time in millisecond
-    // - See Also
-    //      `millis()`
     unsigned int pick() const
     {
-        //static   unsigned int max = -1;
         const unsigned int curr = millis();
-
         //// overflow
         //if (curr < start) {
         //}
         return curr - start; // elapsed
     }
-
     // - Note
     //      Acquire elapsed time and reset the stop watch
-    //      Millisecond
     unsigned int reset()
     {
         unsigned int span = pick();
@@ -42,27 +37,25 @@ class stop_watch
     }
 };
 
-stop_watch timer;
-
+// - Note
+//      Accelerometer value in floating point
 struct Unit
 {
     float x, y, z;
-
     Unit()
     {
         x = y = z = 0;
     }
 };
 
-Unit ma;
-
+// - Note
+//      Group of Unit
 class UnitGroup
 {
   public:
     uint8_t idx;
     Unit buf[10];
 
-  public:
   private:
     void next()
     {
@@ -94,7 +87,7 @@ class UnitGroup
         }
         return sma;
     }
-}
+};
 
 // - Note
 //      3-Axis Low Pass Filter
@@ -129,9 +122,59 @@ class LPF3A
     }
 };
 
-LPF3A filter;
+// State index definition
+#define TRAIN 0
+#define REPORT 1
+#define MONITOR 2
 
-class Pets
+uint8_t fdummy()
+{
+    blinkBatteryLevel();
+    return MONITOR;
+}
+
+// - Note
+//      State machine function table
+struct State
+{
+    uint8_t (*pfInput)();
+    uint8_t (*pfUpdate)();
+    uint8_t (*pfOutput)();
+    State()
+    {
+        // Prevent nullptr : Battery notification
+        pfInput = pfUpdate = pfOutput = fdummy;
+    }
+};
+
+// - Note
+//      State machine with Function fable
+class Machine
+{
+    uint8_t state;
+    State ftbl[3];
+  public:
+    Machine()
+    {
+        state = MONITOR;
+    }
+    void input()
+    {
+        state = (*ftbl[state].pfInput)();
+    }
+    void update()
+    {
+        state = (*ftbl[state].pfUpdate)();
+    }
+    void output()
+    {
+        state = (*ftbl[state].pfOutput)();
+    }
+};
+
+// - Note
+//      Pets main module
+class Pets : public Machine
 {
   public:
     UnitGroup grp;
@@ -159,7 +202,8 @@ class Pets
     int posture(float ax, float ay, float az)
     {
         grp.emplace(ax, ay, az);
-        if(grp.SMA() > 250){
+        if (grp.SMA() > 250)
+        {
             return 2;
         }
         else if (SVM(ax, ay, az) > 100)
@@ -208,6 +252,9 @@ class Pets
     }
 };
 
+stop_watch timer;
+Unit ma;
+LPF3A filter;
 Pets pets;
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
@@ -225,6 +272,11 @@ void onNoConnect();
 
 void loop()
 {
+    pets.input();
+    pets.update();
+    pets.output();
+
+    /*
     timer.reset();
     if (Bean.getConnectionState() == true)
         // Connected. Make report
@@ -232,6 +284,7 @@ void loop()
     else
         // Not connected
         onNoConnect();
+    */
 }
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
