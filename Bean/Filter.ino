@@ -118,8 +118,9 @@ void loop()
 
     // Report
     print(ma.x, ma.y, ma.z);
-    print(la.x, la.y, la.z);
+    Serial.println();
     print(g.x, g.y, g.z);
+    print(la.x, la.y, la.z);
     Serial.println();
 
     Bean.sleep(200); // ~5 Hz

@@ -191,7 +191,7 @@ class UnitGroup
         {
             sma = sma + abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
         }
-        return sma / GSize;
+        return sma / GSiz
     }
 };
 
@@ -204,7 +204,8 @@ public:
     unsigned int weight;
 
 private:
-    void increase(){
+    void increase()
+    {
         if(weight < 99){
             weight += 1;
         }
@@ -276,6 +277,17 @@ class Pets
     int posture(float ax, float ay, float az)
     {
         grp.emplace(ax, ay, az);
+
+        float distSMA[POSTURES] = {0};
+        for(int i=0;i<POSTURES;++i){
+            distSMA[i] = catSMA.distance(grp.SMA());
+        }
+
+        float distSMV[POSTURES] = {0};
+        for(int i=0;i<POSTURES;++i){
+            distSMV[i] = catSMV.distance(SMV(ax,ay,az));
+        }
+
         return LIE;
     }
 
