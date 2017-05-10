@@ -6,7 +6,8 @@ void print(int x, int y, int z)
     Serial.print(y);
     Serial.print(' ');
     Serial.print(z);
-    Serial.flush();
+    delay(10);
+    // Serial.flush();
 }
 
 // - Note
@@ -101,18 +102,21 @@ Timer timer;
 void setup()
 {
     // Attenuation Ratio
-    filter.alpha = 0.7154;
+    filter.alpha = 0.7585;
 
     timer.reset();
 }
 int count = 0;
 void loop()
 {
+    timer.reset();
     // Measure acceleration
+    Bean.setLed(0, 125, 0);
     iUnit ma;
     ma.x = Bean.getAccelerationX();
     ma.y = Bean.getAccelerationY();
     ma.z = Bean.getAccelerationZ();
+    Bean.setLed(0, 0, 0);
 
     // Filtering
     filter.separate(ma.x, ma.y, ma.z);
@@ -120,8 +124,15 @@ void loop()
     fUnit la = filter.la; // Linear Acceleration
 
     count++;
-    if(count == 10){
-        print(ma.x,ma.y,ma.z);
-        Serial.println(timer.reset());
+    // if(count == 10){
+    print(ma.x,ma.y,ma.z);
+    Serial.print('\n');
+    delay(10);
+
+    long span = 500 - (long)timer.pick(); 
+    if(span > 0){
+        Bean.sleep(span);
     }
+    // Serial.println(timer.reset());
+    // }
 }
