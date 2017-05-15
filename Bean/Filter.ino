@@ -104,7 +104,6 @@ void setup()
 
 void loop()
 {
-
     // Measure acceleration
     Unit ma;
     ma.x = Bean.getAccelerationX();

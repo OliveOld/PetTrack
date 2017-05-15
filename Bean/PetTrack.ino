@@ -27,7 +27,7 @@ float Norm(float x, float y, float z)
 //      Simple timer for Arduino
 class Timer
 {
-    unsigned long start;
+    uint32_t start;
 
   public:
     Timer()
@@ -36,19 +36,16 @@ class Timer
     };
     // - Note
     //      Acquire elapsed time in millisecond
-    unsigned long pick() const
+    uint32_t pick() const
     {
-        const unsigned long curr = millis();
-        //// overflow
-        //if (curr < start) {
-        //}
+        const uint32_t curr = millis();
         return curr - start; // elapsed
     }
     // - Note
     //      Acquire elapsed time and reset the stop watch
-    unsigned long reset()
+    uint32_t reset()
     {
-        unsigned long span = pick();
+        uint32_t span = pick();
         start = millis();
         return span;
     }
@@ -97,7 +94,7 @@ class LPF3A
     }
 };
 
-const int GSize = 5;
+const int GSize = 4;
 
 // - Note
 //      Group of Unit
@@ -105,7 +102,7 @@ class UnitGroup
 {
   public:
     uint8_t idx;
-    Unit buf[GSize];
+    Unit    buf[GSize];
 
   private:
     void next()
@@ -144,28 +141,31 @@ const int POSTURES = 8;
 enum Pos
 {
     Unknown  = 0,
-    Lie,
-    LieSide,
-    LieBack,
-    Sit,
-    Stand,
-    Walk,
-    Run
+    Lie,        // 1
+    LieSide,    // 2
+    LieBack,    // 3
+    Sit,        // 4
+    Stand,      // 5
+    Walk,       // 6
+    Run         // 7
 };
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Function Declarations
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-void* Blink();      // Blink LED. Current Battery State
+void*   Blink();      // Blink LED. Current Battery State
 
-void* Clear();      // Clear the time records
-void* Monitor();    // Monitoring
+void*   Clear();      // Clear the time records
+void*   Monitor();    // Monitoring
 
-void* Connected();  // On Connect, check serial
-void* Report();     // Report data based on request
-void* Train();      // Receiving Guide from remote
-void* Sync();       // Synchronizing with remote
+void*   Connected();  // On Connect, check serial
+void*   Report();     // Report data based on request
+void*   Train();      // Receiving Guide from remote
+void*   Sync();       // Synchronizing with remote
+
+void    UpdateMA();
+void    Preproc();
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Core Variables & Functions
@@ -173,9 +173,11 @@ void* Sync();       // Synchronizing with remote
 
 void* (*state)();
 
-Unit            ma;
-UnitGroup       grp;
-unsigned long   time[POSTURES]; // unsigned long per Postures
+LPF3A      filter;
+Timer      timer;
+Unit       ma;
+UnitGroup  grp;
+uint32_t   time[POSTURES]; // uint32_t per Postures
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
@@ -190,12 +192,14 @@ void setup()
 
 void loop()
 {
+    timer.reset();
+
     if(state != NULL){
         void* ptr = (*state)();
         state = reinterpret_cast<void*(*)()>(ptr);
     }
     else{
-        Bean.setLed(100,100,100);
+        Bean.setLed(0,100,100);
         Bean.sleep(200);
         Bean.setLed(0, 0, 0);        
     }
@@ -207,14 +211,33 @@ void loop()
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 // - Note
+//      Measure current acceleration
+void UpdateMA()
+{
+    ma.x = Bean.getAccelerationX();
+    ma.y = Bean.getAccelerationY();
+    ma.z = Bean.getAccelerationZ();
+}
+
+// - Note
+//      Pre-processing of MA
+void Preproc()
+{
+    // Filtering
+    filter.separate(ma.x, ma.y, ma.z);
+    // Unit g = filter.g;   // Gravity Acceleration
+    // Unit la = filter.la; // Linear Acceleration
+}
+
+// - Note
 //      Connection    = Blue
 //      Battery Level = Red-Green 
 void* Blink()
 {
     uint8_t leftover = Bean.getBatteryLevel();
     
-    uint8_t green = leftover * 2;
-    uint8_t red   = (100 - leftover)*2;
+    uint8_t green = leftover;
+    uint8_t red   = (100 - leftover);
     uint8_t blue  = 0;
 
     // If connected, replace to Blue
@@ -233,30 +256,59 @@ void* Blink()
 // Clear the time records
 void* Clear()
 {
+    filter.alpha = 0.7592;
     ma.x = ma.y = ma.z = 0;
     for(int i = 0; i < POSTURES; ++i){
         time[i] = 0;
     }
     grp.clear();
-    return reinterpret_cast<void*>(NULL);
+    return reinterpret_cast<void*>(Monitor);
 }
 
 // Monitoring
 void* Monitor()
 {
-    return reinterpret_cast<void*>(NULL);
+    
+
+    if(Bean.getConnectionState() == true){
+        // -> Connected
+        return reinterpret_cast<void*>(Connected);
+    }
+    else{
+        // -> Keep Monitoring
+        return reinterpret_cast<void*>(Monitor);
+    }
 }
 
 // On Connect, check serial
 void* Connected()
 {
+    // Wait for message
+    while(Bean.getConnectionState()
+          && Serial.available() == 0)
+    {
+        Blink();
+        // Wait until we got message
+        Bean.sleep(1000);
+    }
+
+    if(Bean.getConnectionState() == false)
+    {
+        return reinterpret_cast<void*>(Monitor);
+    }
+
+    // Read Message...
+    // return reinterpret_cast<void*>(Report);
+    // return reinterpret_cast<void*>(Train);
+    // return reinterpret_cast<void*>(Sync);
     return reinterpret_cast<void*>(NULL);
 }
 
 // Report data based on request
 void* Report()
 {
-    return reinterpret_cast<void*>(NULL);
+    Serial.print("Reporting...");
+    return reinterpret_cast<void*>(Clear);
 }
 
 // Receiving Guide from remote
