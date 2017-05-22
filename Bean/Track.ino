@@ -9,18 +9,21 @@
 //
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
+typedef void* PTR;
+typedef PTR(*)() State;
+
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Utility
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-float square(float x)
+uint32_t Square(int16_t x)
 {
     return x*x;
 }
 
-float Norm(float x, float y, float z)
+uint32_t Norm(int16_t x, int16_t y, int16_t z)
 {
-    return sqrt(square(x) + square(y) + square(z));
+    return Square(x) + Square(y) + Square(z));
 }
 
 // - Note
@@ -53,7 +56,7 @@ class Timer
 
 struct Unit
 {
-    float x, y, z;
+    int x, y, z;
 
     Unit()
     {
@@ -66,7 +69,7 @@ struct Unit
 class LPF3A
 {
   public:
-    float alpha;
+    int alpha;
 
     Unit la; // Linear Acceleration
     Unit g;  // Gravity Acceleration
@@ -81,12 +84,13 @@ class LPF3A
     // - Note
     //      Receive Measured accceleration,
     //      then update Linear/Gravity acceleration.
-    void separate(float mx, float my, float mz)
+    void separate(int mx, int my, int mz)
     {
+        // a == [0,999]
         // G = a*G + (1-a)* MA
-        g.x = mx + alpha * (g.x - mx);
-        g.y = my + alpha * (g.y - my);
-        g.z = mz + alpha * (g.z - mz);
+        g.x = mx + (alpha * (g.x - mx))/1000;
+        g.y = my + (alpha * (g.y - my))/1000;
+        g.z = mz + (alpha * (g.z - mz))/1000;
         // LA = MA - G
         la.x = mx - g.x;
         la.y = my - g.y;
@@ -119,16 +123,16 @@ class UnitGroup
             buf[i].x = buf[i].y = buf[i].z = 0;
         }
     }
-    void emplace(float x, float y, float z)
+    void emplace(int x, int y, int z)
     {
         buf[idx].x = x;
         buf[idx].y = y;
         buf[idx].z = z;
         next();
     }
-    float SMA()
+    int SMA()
     {
-        float sma = 0;
+        uint32_t sma = 0;
         for (int i = 0; i < GSize; ++i)
         {
             sma = sma + abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
@@ -136,6 +140,8 @@ class UnitGroup
         return sma / GSize;
     }
 };
+
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 const int POSTURES = 8;
 enum Pos
@@ -154,24 +160,24 @@ enum Pos
 // Function Declarations
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-void*   Blink();      // Blink LED. Current Battery State
+// PTR   Blink();      // Blink LED. Current Battery State
 
-void*   Clear();      // Clear the time records
-void*   Monitor();    // Monitoring
+// PTR   Clear();      // Clear the time records
+// PTR   Monitor();    // Monitoring
 
-void*   Connected();  // On Connect, check serial
-void*   Report();     // Report data based on request
-void*   Train();      // Receiving Guide from remote
-void*   Sync();       // Synchronizing with remote
+// PTR   Connected();  // On Connect, check serial
+// PTR   Report();     // Report data based on request
+// PTR   Train();      // Receiving Guide from remote
+// PTR   Sync();       // Synchronizing with remote
 
-void    UpdateMA();
-void    Preproc();
+// void    UpdateMA();
+// void    Preproc();
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Core Variables & Functions
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-void* (*state)();
+State state;
 
 LPF3A      filter;
 Timer      timer;
@@ -184,7 +190,7 @@ uint32_t   time[POSTURES]; // uint32_t per Postures
 void setup()
 {
     Clear();
-
+    filter.alpha = 759; // (759 * x) / 1000
     state = Blink;
     // Update in a 100ms period
     Bean.setAccelerometerPowerMode(0x5A);
@@ -195,8 +201,7 @@ void loop()
     timer.reset();
 
     if(state != NULL){
-        void* ptr = (*state)();
-        state = reinterpret_cast<void*(*)()>(ptr);
+        state = (*state)();
     }
     else{
         Bean.setLed(0,100,100);
@@ -212,11 +217,12 @@ void loop()
 
 // - Note
 //      Measure current acceleration
-void UpdateMA()
+void Measure()
 {
-    ma.x = Bean.getAccelerationX();
-    ma.y = Bean.getAccelerationY();
-    ma.z = Bean.getAccelerationZ();
+    AccelerationReading a = Bean.getAcceleration();
+    ma.x = a.x;
+    ma.y = a.y;
+    ma.z = a.z;
 }
 
 // - Note
@@ -225,14 +231,14 @@ void Preproc()
 {
     // Filtering
     filter.separate(ma.x, ma.y, ma.z);
-    // Unit g = filter.g;   // Gravity Acceleration
-    // Unit la = filter.la; // Linear Acceleration
+    Unit g = filter.g;   // Gravity Acceleration
+    Unit la = filter.la; // Linear Acceleration
 }
 
 // - Note
 //      Connection    = Blue
 //      Battery Level = Red-Green 
-void* Blink()
+PTR Blink()
 {
     uint8_t leftover = Bean.getBatteryLevel();
     
@@ -250,11 +256,11 @@ void* Blink()
     Bean.sleep(200);
     Bean.setLed(0, 0, 0);
 
-    return reinterpret_cast<void*>(Blink);
+    return reinterpret_cast<PTR>(Blink);
 }
 
 // Clear the time records
-void* Clear()
+PTR Clear()
 {
     filter.alpha = 0.7592;
     ma.x = ma.y = ma.z = 0;
@@ -262,26 +268,30 @@ void* Clear()
         time[i] = 0;
     }
     grp.clear();
-    return reinterpret_cast<void*>(Monitor);
+    return reinterpret_cast<PTR>(Monitor);
 }
 
 // Monitoring
-void* Monitor()
+PTR Monitor()
 {
-    
+    Measure();
+    Preproc();
+
+
+
 
     if(Bean.getConnectionState() == true){
         // -> Connected
-        return reinterpret_cast<void*>(Connected);
+        return reinterpret_cast<PTR>(Connected);
     }
     else{
         // -> Keep Monitoring
-        return reinterpret_cast<void*>(Monitor);
+        return reinterpret_cast<PTR>(Monitor);
     }
 }
 
 // On Connect, check serial
-void* Connected()
+PTR Connected()
 {
     // Wait for message
     while(Bean.getConnectionState()
@@ -294,31 +304,31 @@ void* Connected()
 
     if(Bean.getConnectionState() == false)
     {
-        return reinterpret_cast<void*>(Monitor);
+        return reinterpret_cast<PTR>(Monitor);
     }
 
     // Read Message...
-    // return reinterpret_cast<void*>(Report);
-    // return reinterpret_cast<void*>(Train);
-    // return reinterpret_cast<void*>(Sync);
-    return reinterpret_cast<void*>(NULL);
+    // return reinterpret_cast<PTR>(Report);
+    // return reinterpret_cast<PTR>(Train);
+    // return reinterpret_cast<PTR>(Sync);
+    return reinterpret_cast<PTR>(NULL);
 }
 
 // Report data based on request
-void* Report()
+PTR Report()
 {
     Serial.print("Reporting...");
-    return reinterpret_cast<void*>(Clear);
+    return reinterpret_cast<PTR>(Clear);
 }
 
 // Receiving Guide from remote
-void* Train()
+PTR Train()
 {
-    return reinterpret_cast<void*>(NULL);
+    return reinterpret_cast<PTR>(NULL);
 }
 
 // Synchronizing with remote
-void* Sync()
+PTR Sync()
 {
-    return reinterpret_cast<void*>(NULL);
+    return reinterpret_cast<PTR>(NULL);
 }
