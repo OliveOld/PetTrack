@@ -48,8 +48,6 @@ class UnitGroup;
 void Measure();
 void Preproc();
 
-PTR Monitor();
-
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Core Variables & Functions
 // ---- ---- ---- ---- ----

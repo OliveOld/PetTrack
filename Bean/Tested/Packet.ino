@@ -21,7 +21,7 @@ enum Oper
     OP_Sync,    // 3
 };
 
-const int POSTURES = 8;
+const int Postures = 8;
 enum Pos
 {
     P_Unknown = 0,
