@@ -32,26 +32,24 @@
 //      LA_new = MA - G_new
 //
 //  Caution
-//      출력 형태
-//      { MA.x, MA.y, MA.z } { G.x, G.y, G.z } { LA.x, LA.y, LA.z }
+//      출력 형태:  { MA.x, MA.y, MA.z }
 //
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-void print(float x, float y, float z)
+void Println(int x, int y, int z)
 {
-    Serial.print("{");
     Serial.print(x);
-    Serial.print(",");
+    Serial.print(',');
     Serial.print(y);
-    Serial.print(",");
+    Serial.print(',');
     Serial.print(z);
-    Serial.print("}");
+    Serial.print('\n');
     delay(5);
 }
 
 struct Unit
 {
-    float x, y, z;
+    int x, y, z;
 
     Unit()
     {
@@ -64,7 +62,7 @@ struct Unit
 class LPF3A
 {
   public:
-    float alpha;
+    int alpha;
 
     Unit la; // Linear Acceleration
     Unit g;  // Gravity Acceleration
@@ -76,15 +74,19 @@ class LPF3A
         g.x = g.y = g.z = 0;
     }
 
+    int factor(int x)
+    {
+        return (x * alpha) / 1000;
+    }
     // - Note
     //      Receive Measured accceleration,
     //      then update Linear/Gravity acceleration.
-    void separate(float mx, float my, float mz)
+    void separate(int mx, int my, int mz)
     {
         // G = a*G + (1-a)* MA
-        g.x = mx + alpha * (g.x - mx);
-        g.y = my + alpha * (g.y - my);
-        g.z = mz + alpha * (g.z - mz);
+        g.x = mx + factor(g.x - mx);
+        g.y = my + factor(g.y - my);
+        g.z = mz + factor(g.z - mz);
         // LA = MA - G
         la.x = mx - g.x;
         la.y = my - g.y;
@@ -99,12 +101,11 @@ LPF3A filter;
 void setup()
 {
     // Attenuation Ratio
-    filter.alpha = 0.8;
+    filter.alpha = 759; // 0.759
 }
 
 void loop()
 {
-
     // Measure acceleration
     Unit ma;
     ma.x = Bean.getAccelerationX();
@@ -117,11 +118,7 @@ void loop()
     Unit la = filter.la; // Linear Acceleration
 
     // Report
-    print(ma.x, ma.y, ma.z);
-    Serial.println();
-    print(g.x, g.y, g.z);
-    print(la.x, la.y, la.z);
-    Serial.println();
+    Println(ma.x, ma.y, ma.z);
 
-    Bean.sleep(200); // ~5 Hz
+    // Bean.sleep(200); // ~5 Hz
 }
