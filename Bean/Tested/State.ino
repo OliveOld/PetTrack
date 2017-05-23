@@ -43,6 +43,22 @@ void *Syncing();   // Synchronize with App's data
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
+void *follow(int prefix)
+{
+    // report -> Reporting
+    if (prefix == OP_Report)
+        return (void *)Reporting;
+    // train -> Training
+    else if (prefix == OP_Train)
+        return (void *)Training;
+    // sync -> Syncing
+    else if (prefix == OP_Sync)
+        return (void *)Syncing;
+    // else -> Disconnect
+    else
+        return (void *)Disconnect;
+}
+
 void *Monitoring()
 {
     if (Serial.available())
@@ -65,22 +81,6 @@ void *Monitoring()
 }
 
 // ---- ---- ---- ---- ----
-
-void *follow(int prefix)
-{
-    // report -> Reporting
-    if (prefix == OP_Report)
-        return (void *)Reporting;
-    // train -> Training
-    else if (prefix == OP_Train)
-        return (void *)Training;
-    // sync -> Syncing
-    else if (prefix == OP_Sync)
-        return (void *)Syncing;
-    // else -> Disconnect
-    else
-        return (void *)Disconnect;
-}
 
 unsigned lag = 0;
 void *Connected()
@@ -182,8 +182,6 @@ void *Syncing()
 void setup()
 {
     state = Monitoring;
-    // Update sensor in a 100ms period
-    Bean.setAccelerometerPowerMode(0x5A);
 }
 
 void loop()

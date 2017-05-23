@@ -4,7 +4,7 @@
 //      - Park Dong Ha (luncliff@gmail.com)
 //
 //  Note
-//
+//      File for Release Candidate
 //  Caution
 //
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
@@ -13,8 +13,7 @@
 // Type / Utility
 // ---- ---- ---- ---- ----
 
-typedef void *PTR;
-typedef PTR (*State)(void);
+typedef void* (*State)(void);
 
 uint32_t Square(int16_t x);
 uint32_t Norm(int16_t x, int16_t y, int16_t z);
@@ -35,7 +34,7 @@ const int GSize = 4;
 
 // - Note
 //      Group of Unit
-class UnitGroup;
+class Window;
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
@@ -54,11 +53,7 @@ void Preproc();
 
 State state;
 
-LPF3A      filter;
-Timer      timer;
-Unit       ma;
-UnitGroup  grp;
-uint32_t   time[POSTURES]; // uint32_t per Postures
+uint32_t   time[Postures]; // uint32_t per Postures
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
@@ -70,11 +65,12 @@ void setup()
 
     // Acceleration power mode: 100ms period
     Bean.setAccelerometerPowerMode(0x5A);
-
 }
 
 void loop()
 {
+    filter.alpha = 759; // 0.759
+
     // if(state != NULL){
     //     state = (*state)();
     // }
@@ -92,18 +88,12 @@ void loop()
 //      Measure current acceleration
 void Measure()
 {
-    AccelerationReading a = Bean.getAcceleration();
-    ma.x = a.x;
-    ma.y = a.y;
-    ma.z = a.z;
+    // ...
 }
 
 // - Note
 //      Pre-processing of MA
 void Preproc()
 {
-    // Filtering
-    filter.separate(ma.x, ma.y, ma.z);
-    Unit g = filter.g;   // Gravity Acceleration
-    Unit la = filter.la; // Linear Acceleration
+    // ...
 }
