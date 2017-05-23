@@ -1,46 +1,56 @@
+// ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ====
+//
+//  Author
+//      - Park Dong Ha (luncliff@gmail.com)
+//
+//  Note
+//      Algorithm prototype
+//
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 // (Overlapped) Window size for SMA
 #define WindowSize 4
+// Low Pass Filter smoothing factor
+#define ALPHA 759
 
-uint32_t Square(int16_t x)
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+
+uint32_t square(int16_t x)
 {
-    return x*x;
+    return x * x;
 }
 
-uint32_t Norm(int16_t x, int16_t y, int16_t z)
+uint32_t magnitude(int16_t x, int16_t y, int16_t z)
 {
-    return Square(x) + Square(y) + Square(z);
+    return square(x) + square(y) + square(z);
 }
 
-struct Unit
+struct Sample
 {
     int x, y, z;
 
-    Unit(){
+    Sample()
+    {
         x = y = z = 0;
     }
 };
 
 // - Note
 //      3-Axis Low Pass Filter
-class LPF3A
+struct LPF3A
 {
-  public:
-    int alpha;
-
-    Unit la; // Linear Acceleration
-    Unit g;  // Gravity Acceleration
+    Sample la; // Linear Acceleration
+    Sample g;  // Gravity Acceleration
   public:
     LPF3A()
     {
-        alpha = 0; // Caution : 0 by default
         la.x = la.y = la.z = 0;
         g.x = g.y = g.z = 0;
     }
 
     int factor(int x)
     {
-        return (x * alpha) / 1000;
+        return (x * ALPHA) / 1000;
     }
     // - Note
     //      Receive Measured accceleration,
@@ -59,12 +69,12 @@ class LPF3A
 };
 
 // - Note
-//      Group of Unit
+//      Group of Sample
 class Window
 {
   public:
-    int     idx;
-    Unit    buf[WindowSize];
+    int idx;
+    Sample buf[WindowSize];
 
   private:
     void next()
@@ -93,26 +103,28 @@ class Window
         uint32_t sma = 0;
         for (int i = 0; i < WindowSize; ++i)
         {
-            sma = sma + abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
+            uint32_t inc = abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
+            sma += inc;
         }
         return sma / WindowSize;
     }
 };
 
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+
 Window win;
 
-uint32_t SMA(int x, int y, int z)
+uint32_t area(int x, int y, int z)
 {
-    win.emplace(x,y,z);
+    win.emplace(x, y, z);
     return win.SMA();
 }
 
-Unit ma;
-LPF3A filter;
+Sample ma;
 
 // - Note
 //      Measure current acceleration
-void Measure()
+void measure()
 {
     AccelerationReading a = Bean.getAcceleration();
     ma.x = a.xAxis;
@@ -120,26 +132,98 @@ void Measure()
     ma.z = a.zAxis;
 }
 
+LPF3A filter;
+
 // - Note
 //      Pre-processing of MA
-void Preproc()
+void preproc()
 {
     // MA -> LA, G
     filter.separate(ma.x, ma.y, ma.z);
 }
 
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+
+const int Postures = 8;
+enum Pos
+{
+    P_Unknown = 0,
+    P_Lie,     // 1
+    P_LieSide, // 2
+    P_LieBack, // 3
+    P_Sit,     // 4
+    P_Stand,   // 5
+    P_Walk,    // 6
+    P_Run      // 7
+};
+
+enum Attr
+{
+    A_Mean = 1,
+    A_Stdev,    // 2
+    A_Time      // 3
+};
+
+
+int32_t  averages[Postures];
+int32_t  stdevs[Postures];
+uint32_t times[Postures];
+
+
+// Not Implemented
+uint8_t posture(int x, int y, int z)
+{
+    return P_Unknown;
+}
+
+// Not Implemented
+bool isStatic(uint8_t pos)
+{
+    return false;
+}
+
+float orientation(int gx, int gy, int gz)
+{
+    return 0.0f;
+}
+
+void record(uint8_t pos, uint32_t dur)
+{
+    times[pos] += dur;
+}
+
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 void setup()
 {
     // Update sensor in a 100ms period
     Bean.setAccelerometerPowerMode(0x5A);
-    filter.alpha = 759; // 0.759
 }
 
 void loop()
 {
-    Measure();    // Read acceleration
-    Preproc();    // Filtering
+    measure(); // Read acceleration
+    preproc(); // Filtering
 
-    // Report
+    // LA -> Posture
+    Sample* pacc = &filter.la;
+    uint8_t p = posture(pacc->x, pacc->y, pacc->z);
+ 
+    // if static posture, 
+    if( isStatic(p) == true ){
+        // calculate angle
+        pacc = &filter.g;
+        float angle = orientation(pacc->x, pacc->y, pacc->z);
+        angle = abs(angle);
+
+        if(angle > 40){
+            p = P_LieSide;
+        }
+        else if (angle > 90){
+            p = P_LieBack;
+        }
+    }
+
+    // Record (Posture, Millisecond)
+    record(p, 200);
 }
