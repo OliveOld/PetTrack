@@ -1,9 +1,17 @@
+// ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ==== ====
+//
+//  Author
+//      - Park Dong Ha (luncliff@gmail.com)
+//
+//  Note
+//      Skeleton code of state machine
+//
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 typedef void *PTR;
 typedef PTR (*State)(void);
 
 State state;
-unsigned lag = 0;
 
 struct Packet
 {
@@ -15,32 +23,29 @@ struct Packet pack;
 
 enum Oper
 {
-    Discon = -1,
-    Report = 1,
-    Train,
-    Sync,
+    OP_Discon = -1,
+    OP_Report = 1,
+    OP_Train,
+    OP_Sync,
 };
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-PTR Monitoring();   // Monitoring
+PTR Monitoring(); // Monitoring
 
 PTR Connected();    // Read Message prefix and transit to Report, Train, Sync
 PTR Disconnect();   // Start disconnecting
 PTR Disconnected(); // Disconnected
 
-PTR Reporting();    // Response to App's request
-PTR Training();     // Receive posture guide from App
-PTR Syncing();      // Synchronize with App's data
+PTR Reporting(); // Response to App's request
+PTR Training();  // Receive posture guide from App
+PTR Syncing();   // Synchronize with App's data
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 PTR Monitoring()
 {
-    if (Serial.available())
-    {
-        return (PTR)Connected;
-    }
+    if (Serial.available()) return (PTR)Connected;
 
     // Measure
     // Pre-process
@@ -58,28 +63,41 @@ PTR Monitoring()
 
 // ---- ---- ---- ---- ----
 
-PTR follow(uint8_t prefix)
+PTR follow(int prefix)
 {
-    switch (prefix)
-    {
-    case Oper::Report:  return (PTR)Reporting;
-    case Oper::Train:   return (PTR)Training;
-    case Oper::Sync:    return (PTR)Syncing;
-    default:            return (PTR)Disconnect;
+    if(prefix == OP_Report){
+        return (PTR)Reporting;
     }
+    else if(prefix == OP_Train)
+    {
+        return (PTR)Training;
+    }
+    return (PTR)Monitoring;
+    // switch (prefix)
+    // {
+    // case (int)OP_Report:
+    //     return (PTR)Reporting;
+    // case (int)OP_Train:
+    //     return (PTR)Training;
+    // case (int)OP_Sync:
+    //     return (PTR)Syncing;
+    // default:
+    //     return (PTR)Disconnect;
+    // }
 }
 
+unsigned lag = 0;
 PTR Connected()
 {
     // Wait for message
-    while(Serial.available() == 0)
+    while (Serial.available() == 0)
     {
         // Bean.sleep(200);
         delay(200);
         lag += 200;
-        
+
         // Wait up to 3 seconds
-        if(lag > 3000)
+        if (lag > 3000)
             return (PTR)Disconnected;
     }
 
@@ -91,7 +109,7 @@ PTR Connected()
 PTR Disconnect()
 {
     // Send Disconnect Message
-    Serial.write((uint8_t)Oper::Discon);
+    Serial.write((uint8_t)OP_Discon);
 
     // LED off & Manual Disconnect
     // Bean.setLed(0,0,0);
@@ -106,7 +124,6 @@ PTR Disconnected()
     return (PTR)Monitoring;
 }
 
-
 // ---- ---- ---- ---- ----
 
 PTR Reporting()
@@ -115,16 +132,16 @@ PTR Reporting()
     // Bean.setLed(150, 0, 0);
 
     // Handle report request
-    while (pack.prefix != Oper::Report)
-    {
-        // Recv
-        {
-        }
-        // Send
-        {
-        }
-        // pack.prefix;
-    }
+    // while (pack.prefix != OP_Report)
+    // {
+    //     // Recv
+    //     {
+    //     }
+    //     // Send
+    //     {
+    //     }
+    //     // pack.prefix;
+    // }
 
     return follow(pack.prefix);
 }
@@ -135,16 +152,16 @@ PTR Training()
     // Bean.setLed(0, 150, 0);
 
     // Handle training message
-    while (pack.prefix != Oper::Train)
-    {
-        // Recv
-        {
-        }
-        // Send
-        {
-        }
-        // pack.prefix;
-    }
+    // while (pack.prefix != OP_Train)
+    // {
+    //     // Recv
+    //     {
+    //     }
+    //     // Send
+    //     {
+    //     }
+    //     // pack.prefix;
+    // }
 
     return follow(pack.prefix);
 }
@@ -153,18 +170,18 @@ PTR Syncing()
 {
     // Blue
     // Bean.setLed(0, 0, 150);
-    
+
     // Handle sync message
-    while (pack.prefix != Oper::Sync)
-    {
-        // Recv
-        {
-        }
-        // Send
-        {
-        }
-        // pack.prefix;
-    }
+    // while (pack.prefix != OP_Sync)
+    // {
+    //     // Recv
+    //     {
+    //     }
+    //     // Send
+    //     {
+    //     }
+    //     // pack.prefix;
+    // }
 
     return follow(pack.prefix);
 }

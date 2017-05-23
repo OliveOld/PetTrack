@@ -15,34 +15,32 @@ typedef PTR (*State)(void);
 
 enum Oper
 {
-    Dis = -1,
-    Rep = 1,
-    Tra,
-    Syn,
+    OP_Discon = -1,
+    OP_Report = 1,
+    OP_Train,   // 2
+    OP_Sync,    // 3
 };
 
 const int POSTURES = 8;
 enum Pos
 {
-    Unknown = 0,
-    Lie,     // 1
-    LieSide, // 2
-    LieBack, // 3
-    Sit,     // 4
-    Stand,   // 5
-    Walk,    // 6
-    Run      // 7
+    P_Unknown = 0,
+    P_Lie,     // 1
+    P_LieSide, // 2
+    P_LieBack, // 3
+    P_Sit,     // 4
+    P_Stand,   // 5
+    P_Walk,    // 6
+    P_Run      // 7
 };
 
 enum Attr
 {
-    Mean = 1,
-    Stdev,
-    Time
+    A_Mean = 1,
+    A_Stdev,    // 2
+    A_Time      // 3
 };
 
-namespace Comm
-{
 struct Packet
 {
     uint8_t prefix;
@@ -112,7 +110,7 @@ void WriteParam()
 //      true if read
 bool ReadValue()
 {
-    if (Serial.available() >= sizeof(uint32_t))
+    if ((uint32_t)Serial.available() >= sizeof(uint32_t))
     {
         pack.value = Serial.parseInt();
         return true;
@@ -125,23 +123,21 @@ void WriteValue()
     Serial.write(pack.value);
 }
 
-} // namespace Comm
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-uint8_t b = 8;
-State state;
+int32_t  average;
+int32_t  stdev;
+uint32_t time;
 
 void setup()
 {
-    state = NULL;
-    b = 9;
+    average = 150;
+    stdev   = 75;
+    time    = 25;
 }
 
 void loop()
 {
-    if (state)
-    {
-        PTR ptr = (*state)();
-        state = (State)ptr;
-    }
-    Serial.write(b);
+    pack.param = param(P_Run, A_Mean);
+
 }
