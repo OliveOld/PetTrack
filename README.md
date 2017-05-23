@@ -1,8 +1,13 @@
 # PetTrack
  
+### Folders
+ - `Bean/`: .ino Files
+   - `Stage/`: Files with error/warnings
+   - `Tested/`: Files that passed build test
+
 ## Communication Protocol
 
-### 1. Packet Structure
+### Packet Structure
 Device와 App의 통신을 위한 정보는 3 부분으로 구성되며, 필요에 의해 1 byte만 전송되거나, 최대 6 byte를 전송한다.
 
 ```c++
@@ -59,13 +64,15 @@ enum Attr
 };
 ```
 
-### 2. Monitoring
+## Device's State/Action
+
+### Monitoring
  - 기본상태
 
 모니터링 단계에서는 통신이 없으며, Bluetooth 연결이 확인되는 즉시 다른 상태로 전이한다. Bluetooth 연결이 종료되거나, 일정시간 후에도 통신이 없는 경우 다시 이 상태로 돌아온다.
 
 
-### 3. Reporting
+### Reporting
 - Device -->> App
 
 Device내에 저장된 값을 App으로 받는다.
@@ -83,7 +90,7 @@ Device내에 저장된 값을 App으로 받는다.
 6 byte. Request로 받은 `prefix`와 `param`을 그대로 사용하며, 적합한 값을 `value`에 채워서 전송한다.
 
 
-### 4. Training
+### Training
 - Device <<-- App
 
 현재 강아지의 자세를 알려주는 용도로 사용한다.
@@ -102,7 +109,7 @@ Device는 한번 메세지를 받은 이후로는 반려견이 마지막으로 �
 ```
 2 byte. App의 메세지를 수신/처리했다는 의미(Ack)로 사용된다. 
 
-### 5. Synchronizing
+### Synchronize
 - Device <<-- App
 
 Device는 RAM을 사용하므로 전력이 공급되지 않으면 기록된 값을 잃게 되며, 이 경우 다시 Training을 해야하는 문제가 생길 수 있다. 이를 위해 기기에서 값을 보내 Device의 메모리를 갱신하는 기능이 필요하며, Sync는 이를 지원한다.
@@ -120,7 +127,7 @@ Device는 RAM을 사용하므로 전력이 공급되지 않으면 기록된 값�
 2 byte. 해당 자세/속성에 대해 기록을 마친 경우 응답을 위해 전송된다.
 
 
-### 6. Disconnect
+### Disconnect
 - Device <<-->> App 
 
 패킷의 `prefix`, `param` 잘못된 경우, Device는 오류를 별도로 처리하지 않고 연결을 종료한다.  
