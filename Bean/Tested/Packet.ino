@@ -142,7 +142,11 @@ bool waitValue()
 
 void writeValue()
 {
-    Serial.write(pack.value);
+    uint8_t* base = (uint8_t*)&pack.value;
+    Serial.write(base[0]);
+    Serial.write(base[1]);
+    Serial.write(base[2]);
+    Serial.write(base[3]);
 }
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
