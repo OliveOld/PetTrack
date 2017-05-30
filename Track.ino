@@ -109,11 +109,6 @@ void store(uint8_t pos, uint8_t attr, uint8_t value);
 void clear();
 void failed();
 
-void OnTrain();
-void OnSync();
-void OnReport();
-void OnMonitor();
-
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Struct
 // ---- ---- ---- ---- ----
@@ -473,39 +468,58 @@ void failed()
     clear();
 }
 
-void OnTrain()
+void* OnMonitor();  // White
+void* OnTrain();    // Red
+void* OnSync();     // Green
+void* OnReport();   // Blue
+void* OnConnect();
+void* OnDisconnect();
+
+void* OnTrain()
 {
+    // Red
+    Bean.setLed(150, 0, 0);
+
     // wait parameter
-    if (waitParam() == false)
-    {
-        // Failed -> Disconnect!
-        return failed();
-    }
+    // !!! This line might cause significant delay (timeout)
+    waitParam();    
 
     // check posture
     u8 p = pos(pack.param);
 
     // increase the time value of the posture
-    times[p] += 100;
+    measure();
+    preproc();
+
+    Sample la = filter.la;
+
+    u32 norm = magnitude(la.x, la.y, la.z);
+    avg_norm[p] = (avg_norm[p] + norm) / 2; // EWMA
+
+    if(isStatic(p)){
+        Sample g = filter.g;
+        Gavg.x = (g.x + Gavg.x) / 2;
+        Gavg.y = (g.y + Gavg.y) / 2;
+        Gavg.z = (g.z + Gavg.z) / 2;
+    }
 
     // Process done, send ack.
     writePrefix();
     writeParam();
+
+    return (PTR)OnConnect;
 }
 
-void OnSync()
+void* OnSync()
 {
-    // wait parameter
-    if (waitParam() == false)
+    // Green
+    Bean.setLed(0, 150, 0);
+
+    // wait parameter and message's value
+    if (waitParam() == false && waitValue() == false)
     {
         // Failed -> Disconnect!
-        return failed();
-    }
-    // wait for message's value
-    if (waitValue() == false)
-    {
-        // Failed -> Disconnect!
-        return failed();
+        return (PTR)OnDisconnect;
     }
 
     // check posture and attribute
@@ -518,15 +532,20 @@ void OnSync()
     // Process done, send ack.
     writePrefix();
     writeParam();
+
+    return (PTR)OnConnect;
 }
 
-void OnReport()
+void* OnReport()
 {
+    // Blue
+    Bean.setLed(0, 0, 150);
+
     // wait parameter
     if (waitParam() == false)
     {
         // Failed -> Disconnect!
-        return failed();
+        return (PTR)OnDisconnect;
     }
     // check posture and attribute
     u8 p = pos(pack.param);
@@ -539,10 +558,15 @@ void OnReport()
     writePrefix();
     writeParam();
     writeValue();
+
+    return (PTR)OnConnect;
 }
 
-void OnMonitor()
+void* OnMonitor()
 {
+    // White
+    Bean.setLed(150, 150, 150);
+
     u32 elapsed = 200;
 
     measure(); // Read acceleration
@@ -572,15 +596,61 @@ void OnMonitor()
 
     // Record (Posture, Millisecond)
     record(p, elapsed);
+
+    if(Bean.getConnectionState()){
+        return (PTR)OnConnect;
+    }
+    else return (PTR)OnMonitor;    
 }
 
+void* OnConnect()
+{
+    // If not connected, go back to `OnMonitor`
+    if(Bean.getConnectionState() == false)
+    {
+        return (PTR)OnMonitor;
+    }
+    // Timeout, disconnect.
+    if(waitPrefix()==false)
+    {
+        return (PTR)OnDisconnect;
+    }
+
+    switch(pack.prefix)
+    {
+    case OP_Sync: return (PTR)OnSync;
+    case OP_Report: return (PTR)OnSync;
+    case OP_Train: return (PTR)OnSync;
+    default:
+        return (PTR)OnDisconnect;
+    }
+}
+
+void* OnDisconnect()
+{
+    // Explicit disconnection
+    if (Bean.getConnectionState())
+    {
+        pack.prefix = OP_Discon;
+        writePrefix();
+        Bean.disconnect();
+    }
+
+    // Clear message buffer
+    pack.prefix = 0;
+    pack.param = param(P_Unknown, A_Mean);
+    pack.value = 0;
+
+    // Restart monitoring
+    return (PTR)OnMonitor;
+}
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
 void setup()
 {
     // Clear variable
-    // Filter's smoothing factor
     // Initial state function
+    state = (State)OnMonitor;
 
     // Update sensor in a 100ms period
     Bean.setAccelerometerPowerMode(0x5A);
@@ -588,5 +658,13 @@ void setup()
 
 void loop()
 {
-    // ...
+    if(state){
+        PTR next = (*state)();
+        state = (State)next;
+    }
+    // Warning: Yellow!
+    else{
+        Bean.setLed(255,255,0);
+        Bean.sleep(1000);
+    }
 }
