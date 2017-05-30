@@ -160,31 +160,77 @@ enum Pos
 enum Attr
 {
     A_Mean = 1,
-    A_Stdev,    // 2
-    A_Time      // 3
+    A_Stdev, // 2. Average Magnitude
+    A_Time   // 3. Average Deviation
 };
 
-
-int32_t  averages[Postures];
-int32_t  stdevs[Postures];
+int32_t avg_norm[Postures];
+int32_t dev_norm[Postures];
+int32_t avg_sma[Postures];
+int32_t dev_sma[Postures];
 uint32_t times[Postures];
 
+Sample Gavg;
 
 // Not Implemented
 uint8_t posture(int x, int y, int z)
 {
-    return P_Unknown;
+    uint8_t pos = P_Unknown; // It's 0. Unknown for now...
+
+    // Derivation
+    uint32_t norm = magnitude(x, y, z);
+    uint32_t sma = area(x, y, z);
+
+    // Distances: SMA + Norm
+    uint32_t distances[5];
+    distances[0] = abs(norm - avg_norm[P_Lie]) + abs(sma - avg_sma[P_Lie]);
+    distances[1] = abs(norm - avg_norm[P_Sit]) + abs(sma - avg_sma[P_Sit]);
+    distances[2] = abs(norm - avg_norm[P_Stand]) + abs(sma - avg_sma[P_Stand]);
+    distances[3] = abs(norm - avg_norm[P_Walk]) + abs(sma - avg_sma[P_Walk]);
+    distances[4] = abs(norm - avg_norm[P_Run] + abs(sma - avg_sma[P_Run]));
+
+    // Find minimum
+    uint32_t min = (uint32_t)-1;
+    for (int i = 0; i < 5; ++i)
+    {
+        if (min > distances[i])
+        {
+            min = distances[i];
+            pos = i;
+        }
+    }
+
+    switch (pos)
+    {
+    case 0: return P_Lie;
+    case 1: return P_Sit;
+    case 2: return P_Stand;
+    case 3: return P_Walk;
+    case 4: return P_Run;
+    default:
+        return P_Unknown;
+    }
 }
 
-// Not Implemented
 bool isStatic(uint8_t pos)
 {
-    return false;
+    return pos == P_Lie;
 }
 
 float orientation(int gx, int gy, int gz)
 {
-    return 0.0f;
+    // Gavg * Gt
+    uint32_t dot = (Gavg.x * gx) + (Gavg.y * gy) + (Gavg.z * gz);
+    // |Gavg|
+    uint32_t Mavg = magnitude(Gavg.x, Gavg.y, Gavg.z);
+    // |Gt|
+    uint32_t Mt = magnitude(gx, gy, gz);
+
+    // |Gavg||Gt|(cos $theta) = Gavg*Gt
+    float cosine = (float)dot;
+    cosine = cosine / (Mavg * Mt); 
+
+    return (float)acos(cosine);
 }
 
 void record(uint8_t pos, uint32_t dur)
@@ -202,28 +248,33 @@ void setup()
 
 void loop()
 {
+    uint32_t elapsed = 200;
+
     measure(); // Read acceleration
     preproc(); // Filtering
 
     // LA -> Posture
-    Sample* pacc = &filter.la;
+    Sample *pacc = &filter.la;
     uint8_t p = posture(pacc->x, pacc->y, pacc->z);
- 
-    // if static posture, 
-    if( isStatic(p) == true ){
+
+    // if static posture,
+    if (isStatic(p) == true)
+    {
         // calculate angle
         pacc = &filter.g;
         float angle = orientation(pacc->x, pacc->y, pacc->z);
         angle = abs(angle);
 
-        if(angle > 40){
+        if (angle > 40)
+        {
             p = P_LieSide;
         }
-        else if (angle > 90){
+        else if (angle > 90)
+        {
             p = P_LieBack;
         }
     }
 
     // Record (Posture, Millisecond)
-    record(p, 200);
+    record(p, elapsed);
 }
