@@ -69,7 +69,7 @@ uint8_t attr(uint8_t param)
 const uint16_t timeout = 1000;  // Wait until 1 second
 bool wait(int sz)
 {
-    uint16_t lag = 0;
+    unsigned short lag = 0;
     // polling loop
     while ((Serial.available() >= sz) == false)
     {
@@ -269,7 +269,7 @@ void OnReport()
 
 void setup()
 {
-    for(int i = 0; i < Postures; ++i){
+    for(unsigned i = 0; i < Postures; ++i){
         averages[i] = i*20; // 20, 40, 60...
         stdevs[i] = i*3; // 3, 6, 9...
         times[i] = i;   // 1, 2, 3...
