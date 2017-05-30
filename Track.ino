@@ -16,13 +16,20 @@
 typedef void *PTR;
 typedef PTR (*State)(void);
 
+typedef int8_t   i8;
+typedef int16_t  i16;
+typedef int32_t  i32;
+typedef uint8_t  u8;
+typedef uint16_t u16;
+typedef uint32_t u32;
+
 // (Overlapped) Window size for SMA
-const unsigned short WindowSize = 4;
+const u16 WindowSize = 4;
 
 // Low Pass Filter smoothing factor
-const unsigned short Alpha = 759;
-const unsigned short MaxAlpha = 1000;
-const unsigned short timeout = 15000; // Wait until 15 seconds
+const u16 Alpha = 759;
+const u16 MaxAlpha = 1000;
+const u16 timeout = 15000; // Wait until 15 seconds
 
 enum Oper
 {
@@ -56,8 +63,8 @@ enum Attr
 // Function
 // ---- ---- ---- ---- ----
 
-uint32_t square(int16_t x);
-uint32_t magnitude(int16_t x, int16_t y, int16_t z);
+uint32_t square(int x);
+uint32_t magnitude(int x, int y, int z);
 
 // - Note
 //      Measure current acceleration
@@ -66,7 +73,7 @@ void measure();
 //      Pre-processing of MA
 void preproc();
 
-uint8_t posture(int x, int y, int z);
+u8 posture(int x, int y, int z);
 bool isStatic(uint8_t pos);
 
 void record(uint8_t pos, uint32_t dur);
@@ -97,7 +104,7 @@ void writeValue();
 bool waitValue();
 
 uint32_t load(uint8_t pos, uint8_t attr);
-void store(uint8_t pos, uint8_t attr, uint32_t value);
+void store(uint8_t pos, uint8_t attr, uint8_t value);
 
 void clear();
 void failed();
@@ -136,7 +143,7 @@ struct LPF3A
 class Window
 {
   public:
-    unsigned short idx;
+    u16 idx;
     Sample buf[WindowSize];
 
   private:
@@ -145,14 +152,14 @@ class Window
   public:
     void clear();
     void emplace(int x, int y, int z);
-    uint32_t SMA();
+    u32 SMA();
 };
 
 struct Packet
 {
-    uint8_t prefix;
-    uint8_t param;
-    uint32_t value;
+    u8 prefix;
+    u8 param;
+    u32 value;
 };
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
@@ -167,12 +174,12 @@ Sample Gavg;
 LPF3A filter;
 Window win;
 
-int32_t avg_norm[Postures];
-int32_t dev_norm[Postures];
-int32_t avg_sma[Postures];
-int32_t dev_sma[Postures];
+i32 avg_norm[Postures];
+i32 dev_norm[Postures];
+i32 avg_sma[Postures];
+i32 dev_sma[Postures];
 
-uint32_t times[Postures];
+u32 times[Postures];
 
 Packet pack;
 
@@ -180,12 +187,12 @@ Packet pack;
 // Implementations
 // ---- ---- ---- ---- ----
 
-uint32_t square(int16_t x)
+uint32_t square(int x)
 {
     return x * x;
 }
 
-uint32_t magnitude(int16_t x, int16_t y, int16_t z)
+uint32_t magnitude(int x, int y, int z)
 {
     return square(x) + square(y) + square(z);
 }
@@ -215,7 +222,7 @@ void Window::next()
 void Window::clear()
 {
     idx = 0;
-    for (int i = 0; i < WindowSize; ++i)
+    for (unsigned i = 0; i < WindowSize; ++i)
     {
         buf[i].x = buf[i].y = buf[i].z = 0;
     }
@@ -229,10 +236,10 @@ void Window::emplace(int x, int y, int z)
 }
 uint32_t Window::SMA()
 {
-    uint32_t sma = 0;
-    for (int i = 0; i < WindowSize; ++i)
+    u32 sma = 0;
+    for (unsigned i = 0; i < WindowSize; ++i)
     {
-        uint32_t inc = abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
+        u32 inc = abs(buf[i].x) + abs(buf[i].y) + abs(buf[i].z);
         sma += inc;
     }
     return sma / WindowSize;
@@ -254,15 +261,15 @@ void preproc()
 
 uint8_t posture(int x, int y, int z)
 {
-    uint8_t pos = P_Unknown; // It's 0. Unknown for now...
+    u8 pos = P_Unknown; // It's 0. Unknown for now...
 
     // Derivation
-    uint32_t norm = magnitude(x, y, z);
+    u32 norm = magnitude(x, y, z);
     win.emplace(x,y,z);
-    uint32_t sma = win.SMA();
+    u32 sma = win.SMA();
 
     // Distances: SMA + Norm
-    uint32_t distances[5];
+    u32 distances[5];
     distances[0] = abs(norm - avg_norm[P_Lie]) + abs(sma - avg_sma[P_Lie]);
     distances[1] = abs(norm - avg_norm[P_Sit]) + abs(sma - avg_sma[P_Sit]);
     distances[2] = abs(norm - avg_norm[P_Stand]) + abs(sma - avg_sma[P_Stand]);
@@ -270,7 +277,7 @@ uint8_t posture(int x, int y, int z)
     distances[4] = abs(norm - avg_norm[P_Run] + abs(sma - avg_sma[P_Run]));
 
     // Find minimum
-    uint32_t min = (uint32_t)-1;
+    u32 min = (u32)-1;
     for (int i = 0; i < 5; ++i)
     {
         if (min > distances[i])
@@ -305,11 +312,11 @@ bool isStatic(uint8_t pos)
 float orientation(int gx, int gy, int gz)
 {
     // Gavg * Gt
-    uint32_t dot = (Gavg.x * gx) + (Gavg.y * gy) + (Gavg.z * gz);
+    u32 dot = (Gavg.x * gx) + (Gavg.y * gy) + (Gavg.z * gz);
     // |Gavg|
-    uint32_t Mavg = magnitude(Gavg.x, Gavg.y, Gavg.z);
+    u32 Mavg = magnitude(Gavg.x, Gavg.y, Gavg.z);
     // |Gt|
-    uint32_t Mt = magnitude(gx, gy, gz);
+    u32 Mt = magnitude(gx, gy, gz);
 
     // |Gavg||Gt|(cos $theta) = Gavg*Gt
     float cosine = (float)dot;
@@ -340,7 +347,7 @@ uint8_t attr(uint8_t param)
 
 bool wait(int sz)
 {
-    uint16_t lag = 0;
+    u16 lag = 0;
     // polling loop
     while ((Serial.available() >= sz) == false)
     {
@@ -395,7 +402,7 @@ bool waitValue()
     // wait 4 byte
     if (wait(4))
     {
-        uint8_t *base = (uint8_t *)&pack.value;
+        u8 *base = (u8 *)&pack.value;
         base[0] = Serial.read();
         base[1] = Serial.read();
         base[2] = Serial.read();
@@ -409,7 +416,7 @@ bool waitValue()
 
 void writeValue()
 {
-    uint8_t *base = (uint8_t *)&pack.value;
+    u8 *base = (u8 *)&pack.value;
     Serial.write(base[0]);
     Serial.write(base[1]);
     Serial.write(base[2]);
@@ -419,11 +426,11 @@ void store(uint8_t pos, uint8_t attr, uint32_t value)
 {
     if (attr == A_Mean)
     {
-        avg_norm[pos] = (int32_t)value;
+        avg_norm[pos] = (i32)value;
     }
     else if (attr == A_Stdev)
     {
-        dev_norm[pos] = (int32_t)value;
+        dev_norm[pos] = (i32)value;
     }
     else if (attr == A_Time)
     {
@@ -435,16 +442,17 @@ uint32_t load(uint8_t pos, uint8_t attr)
 {
     if (attr == A_Mean)
     {
-        return (uint32_t)avg_norm[pos];
+        return (u32)avg_norm[pos];
     }
     else if (attr == A_Stdev)
     {
-        return (uint32_t)dev_norm[pos];
+        return (u32)dev_norm[pos];
     }
     else if (attr == A_Time)
     {
         return times[pos];
     }
+    return -1;
 }
 
 void clear()
@@ -475,7 +483,7 @@ void OnTrain()
     }
 
     // check posture
-    uint8_t p = pos(pack.param);
+    u8 p = pos(pack.param);
 
     // increase the time value of the posture
     times[p] += 100;
@@ -501,8 +509,8 @@ void OnSync()
     }
 
     // check posture and attribute
-    uint8_t p = pos(pack.param);
-    uint8_t a = attr(pack.param);
+    u8 p = pos(pack.param);
+    u8 a = attr(pack.param);
 
     // write the value to memory
     store(p, a, pack.value);
@@ -521,8 +529,8 @@ void OnReport()
         return failed();
     }
     // check posture and attribute
-    uint8_t p = pos(pack.param);
-    uint8_t a = attr(pack.param);
+    u8 p = pos(pack.param);
+    u8 a = attr(pack.param);
 
     // load value for response
     pack.value = load(p, a);
@@ -535,14 +543,14 @@ void OnReport()
 
 void OnMonitor()
 {
-    uint32_t elapsed = 200;
+    u32 elapsed = 200;
 
     measure(); // Read acceleration
     preproc(); // Filtering
 
     // LA -> Posture
     Sample *pacc = &filter.la;
-    uint8_t p = posture(pacc->x, pacc->y, pacc->z);
+    u8 p = posture(pacc->x, pacc->y, pacc->z);
 
     // if static posture,
     if (isStatic(p) == true)
