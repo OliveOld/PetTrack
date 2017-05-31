@@ -16,10 +16,10 @@
 typedef void *PTR;
 typedef PTR (*State)(void);
 
-typedef int8_t   i8;
-typedef int16_t  i16;
-typedef int32_t  i32;
-typedef uint8_t  u8;
+typedef int8_t i8;
+typedef int16_t i16;
+typedef int32_t i32;
+typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 
@@ -106,9 +106,6 @@ bool waitValue();
 uint32_t load(uint8_t pos, uint8_t attr);
 void store(uint8_t pos, uint8_t attr, uint8_t value);
 
-void clear();
-void failed();
-
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Struct
 // ---- ---- ---- ---- ----
@@ -157,6 +154,22 @@ struct Packet
     u32 value;
 };
 
+// - Note
+//      Simple timer for Arduino
+class Timer
+{
+    uint32_t start;
+
+  public:
+    Timer();
+    // - Note
+    //      Acquire elapsed time in millisecond
+    uint32_t pick() const;
+    // - Note
+    //      Acquire elapsed time and reset the stop watch
+    uint32_t reset();
+};
+
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 // Variables
 // ---- ---- ---- ---- ----
@@ -176,6 +189,7 @@ i32 dev_sma[Postures];
 
 u32 times[Postures];
 
+Timer timer;
 Packet pack;
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
@@ -240,6 +254,24 @@ uint32_t Window::SMA()
     return sma / WindowSize;
 }
 
+Timer::Timer()
+{
+    start = millis();
+};
+
+uint32_t Timer::pick() const
+{
+    const uint32_t curr = millis();
+    return curr - start; // elapsed
+}
+
+uint32_t Timer::reset()
+{
+    uint32_t span = pick();
+    start = millis();
+    return span;
+}
+
 void measure()
 {
     AccelerationReading a = Bean.getAcceleration();
@@ -260,7 +292,7 @@ uint8_t posture(int x, int y, int z)
 
     // Derivation
     u32 norm = magnitude(x, y, z);
-    win.emplace(x,y,z);
+    win.emplace(x, y, z);
     u32 sma = win.SMA();
 
     // Distances: SMA + Norm
@@ -284,16 +316,11 @@ uint8_t posture(int x, int y, int z)
 
     switch (pos)
     {
-    case 0:
-        return P_Lie;
-    case 1:
-        return P_Sit;
-    case 2:
-        return P_Stand;
-    case 3:
-        return P_Walk;
-    case 4:
-        return P_Run;
+    case 0: return P_Lie;
+    case 1: return P_Sit;
+    case 2: return P_Stand;
+    case 3: return P_Walk;
+    case 4: return P_Run;
     default:
         return P_Unknown;
     }
@@ -450,39 +477,21 @@ uint32_t load(uint8_t pos, uint8_t attr)
     return -1;
 }
 
-void clear()
-{
-    pack.prefix = 0;
-    pack.param = param(P_Unknown, A_Mean);
-    pack.value = 0;
-}
+void *OnMonitor(); // White
+void *OnTrain();   // Red
+void *OnSync();    // Green
+void *OnReport();  // Blue
+void *OnConnect();
+void *OnDisconnect();
 
-void failed()
-{
-    if (Bean.getConnectionState())
-    {
-        pack.prefix = OP_Discon;
-        writePrefix();
-        Bean.disconnect();
-    }
-    clear();
-}
-
-void* OnMonitor();  // White
-void* OnTrain();    // Red
-void* OnSync();     // Green
-void* OnReport();   // Blue
-void* OnConnect();
-void* OnDisconnect();
-
-void* OnTrain()
+void *OnTrain()
 {
     // Red
     Bean.setLed(150, 0, 0);
 
     // wait parameter
     // !!! This line might cause significant delay (timeout)
-    waitParam();    
+    waitParam();
 
     // check posture
     u8 p = pos(pack.param);
@@ -496,7 +505,8 @@ void* OnTrain()
     u32 norm = magnitude(la.x, la.y, la.z);
     avg_norm[p] = (avg_norm[p] + norm) / 2; // EWMA
 
-    if(isStatic(p)){
+    if (isStatic(p))
+    {
         Sample g = filter.g;
         Gavg.x = (g.x + Gavg.x) / 2;
         Gavg.y = (g.y + Gavg.y) / 2;
@@ -510,7 +520,7 @@ void* OnTrain()
     return (PTR)OnConnect;
 }
 
-void* OnSync()
+void *OnSync()
 {
     // Green
     Bean.setLed(0, 150, 0);
@@ -536,7 +546,7 @@ void* OnSync()
     return (PTR)OnConnect;
 }
 
-void* OnReport()
+void *OnReport()
 {
     // Blue
     Bean.setLed(0, 0, 150);
@@ -562,12 +572,11 @@ void* OnReport()
     return (PTR)OnConnect;
 }
 
-void* OnMonitor()
+void *OnMonitor()
 {
+    timer.reset();
     // White
     Bean.setLed(150, 150, 150);
-
-    u32 elapsed = 200;
 
     measure(); // Read acceleration
     preproc(); // Filtering
@@ -595,38 +604,43 @@ void* OnMonitor()
     }
 
     // Record (Posture, Millisecond)
-    record(p, elapsed);
+    record(p, timer.reset());
 
-    if(Bean.getConnectionState()){
+    if (Bean.getConnectionState())
+    {
         return (PTR)OnConnect;
     }
-    else return (PTR)OnMonitor;    
+    else
+        return (PTR)OnMonitor;
 }
 
-void* OnConnect()
+void *OnConnect()
 {
     // If not connected, go back to `OnMonitor`
-    if(Bean.getConnectionState() == false)
+    if (Bean.getConnectionState() == false)
     {
         return (PTR)OnMonitor;
     }
     // Timeout, disconnect.
-    if(waitPrefix()==false)
+    if (waitPrefix() == false)
     {
         return (PTR)OnDisconnect;
     }
 
-    switch(pack.prefix)
+    switch (pack.prefix)
     {
-    case OP_Sync: return (PTR)OnSync;
-    case OP_Report: return (PTR)OnSync;
-    case OP_Train: return (PTR)OnSync;
+    case OP_Sync:
+        return (PTR)OnSync;
+    case OP_Report:
+        return (PTR)OnSync;
+    case OP_Train:
+        return (PTR)OnSync;
     default:
         return (PTR)OnDisconnect;
     }
 }
 
-void* OnDisconnect()
+void *OnDisconnect()
 {
     // Explicit disconnection
     if (Bean.getConnectionState())
@@ -648,7 +662,21 @@ void* OnDisconnect()
 
 void setup()
 {
-    // Clear variable
+    // Clear variables
+    timer.reset();
+    ma.x = ma.y = ma.z = 0;
+    Gavg.x = Gavg.y = Gavg.z = 0;
+
+    for (unsigned i = 0; i < Postures; ++i)
+    {
+        avg_norm[i] = dev_norm[i] = 0;
+        avg_sma[i] = dev_sma[i] = 0;
+        times[i] = 0;
+    }
+    pack.prefix = 0;
+    pack.param = param(P_Unknown, A_Mean);
+    pack.value = 0;
+    
     // Initial state function
     state = (State)OnMonitor;
 
@@ -658,13 +686,15 @@ void setup()
 
 void loop()
 {
-    if(state){
+    if (state)
+    {
         PTR next = (*state)();
         state = (State)next;
     }
     // Warning: Yellow!
-    else{
-        Bean.setLed(255,255,0);
+    else
+    {
+        Bean.setLed(255, 255, 0);
         Bean.sleep(1000);
     }
 }
