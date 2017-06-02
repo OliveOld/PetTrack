@@ -317,11 +317,16 @@ uint8_t posture(int x, int y, int z)
 
     switch (pos)
     {
-    case 0: return P_Lie;
-    case 1: return P_Sit;
-    case 2: return P_Stand;
-    case 3: return P_Walk;
-    case 4: return P_Run;
+    case 0:
+        return P_Lie;
+    case 1:
+        return P_Sit;
+    case 2:
+        return P_Stand;
+    case 3:
+        return P_Walk;
+    case 4:
+        return P_Run;
     default:
         return P_Unknown;
     }
@@ -480,17 +485,17 @@ uint32_t load(uint8_t pos, uint8_t attr)
 
 // ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
 
-void *OnMonitor();      // White
-void *OnTrain();        // Red
-void *OnSync();         // Green
-void *OnReport();       // Blue
-void *OnConnect();      // -
-void *OnDisconnect();   // Yellow
+void *OnMonitor();    // White
+void *OnTrain();      // Red
+void *OnSync();       // Green
+void *OnReport();     // Blue
+void *OnConnect();    // -
+void *OnDisconnect(); // Yellow
 
 void *OnMonitor()
 {
     timer.reset();
-    Bean.setLed(150, 150, 150);    // White
+    Bean.setLed(150, 150, 150); // White
 
     measure(); // Read acceleration
     preproc(); // Filtering
@@ -524,53 +529,59 @@ void *OnMonitor()
 
 void *OnTrain()
 {
-    Bean.setLed(150, 0, 0);    // Red
-    // Read parameter synchronously
-    pack.param = Serial.read();
-    // check posture
-    u8 p = pos(pack.param);
-
-    // increase the time value of the posture
-    measure();
-    preproc();
-
-    Sample la = filter.la;
-    u32 norm = magnitude(la.x, la.y, la.z);
-
-    // Current weight for this posture
-    const u16 Weight = weights[p];
-    // Weight's upper bound == 512
-    if(Weight < 511){
-        weights[p] += 1;
-    }
-
-    // Update the average of Magnitude     
-    avg_norm[p] = ((avg_norm[p] * Weight) + norm) / (Weight + 1); 
-
-    // For static postures, train gravity vector
-    if (p == P_Lie || p == P_Sit || p == P_Stand)
+    Bean.setLed(150, 0, 0); // Red
+    while (pack.prefix == OP_Train)
     {
-        Sample g = filter.g;
-        Gavg.x = ((g.x * Weight) + Gavg.x) / (Weight + 1);
-        Gavg.y = ((g.y * Weight) + Gavg.x) / (Weight + 1);
-        Gavg.z = ((g.z * Weight) + Gavg.x) / (Weight + 1);
+        // Read parameter synchronously
+        pack.param = Serial.read();
+        // check posture
+        u8 p = pos(pack.param);
+
+        // increase the time value of the posture
+        measure();
+        preproc();
+
+        Sample la = filter.la;
+        u32 norm = magnitude(la.x, la.y, la.z);
+
+        // Current weight for this posture
+        const u16 Weight = weights[p];
+        // Weight's upper bound == 512
+        if (Weight < 511)
+        {
+            weights[p] += 1;
+        }
+
+        // Update the average of Magnitude
+        avg_norm[p] = ((avg_norm[p] * Weight) + norm) / (Weight + 1);
+
+        // For static postures, train gravity vector
+        if (p == P_Lie || p == P_Sit || p == P_Stand)
+        {
+            Sample g = filter.g;
+            Gavg.x = ((g.x * Weight) + Gavg.x) / (Weight + 1);
+            Gavg.y = ((g.y * Weight) + Gavg.x) / (Weight + 1);
+            Gavg.z = ((g.z * Weight) + Gavg.x) / (Weight + 1);
+        }
+
+        win.emplace(la.x, la.y, la.z);
+        u32 area = win.SMA();
+        // Update the average of SMA
+        avg_sma[p] = ((avg_sma[p] * Weight) + area) / (Weight + 1);
+
+        // Process done, send ack.
+        writePrefix();
+        writeParam();
+
+        // Read operataion code again
+        pack.prefix = Serial.read();
     }
-
-    win.emplace(la.x, la.y, la.z);
-    u32 area = win.SMA();
-    // Update the average of SMA 
-    avg_sma[p] = ((avg_sma[p] * Weight) + area) / (Weight + 1); 
-    
-    // Process done, send ack.
-    writePrefix();
-    writeParam();
-
     return (PTR)OnConnect;
 }
 
 void *OnSync()
 {
-    Bean.setLed(0, 150, 0);    // Green
+    Bean.setLed(0, 150, 0); // Green
 
     // wait parameter and message's value
     if (waitParam() == false && waitValue() == false)
@@ -593,7 +604,7 @@ void *OnSync()
 
 void *OnReport()
 {
-    Bean.setLed(0, 0, 150);    // Blue
+    Bean.setLed(0, 0, 150); // Blue
 
     // wait parameter
     // if failed -> Disconnect
@@ -626,17 +637,21 @@ void *OnConnect()
 
     switch (pack.prefix)
     {
-    case OP_Sync:       return (PTR)OnSync;
-    case OP_Report:     return (PTR)OnSync;
-    case OP_Train:      return (PTR)OnSync;
-    default:            return (PTR)OnDisconnect;
+    case OP_Sync:
+        return (PTR)OnSync;
+    case OP_Report:
+        return (PTR)OnSync;
+    case OP_Train:
+        return (PTR)OnSync;
+    default:
+        return (PTR)OnDisconnect;
     }
 }
 
 void *OnDisconnect()
 {
-    Bean.setLed(150, 150, 0);   // Yellow
- 
+    Bean.setLed(150, 150, 0); // Yellow
+
     // Explicit disconnection
     if (Bean.getConnectionState())
     {
@@ -671,7 +686,7 @@ void setup()
     pack.prefix = 0;
     pack.param = param(P_Unknown, A_Mean);
     pack.value = 0;
-    
+
     // Initial state function
     state = (State)OnMonitor;
 
@@ -683,7 +698,7 @@ void loop()
 {
     if (state)
     {
-        Bean.setLed(0,0,0);
+        Bean.setLed(0, 0, 0);
         PTR next = (*state)();
         state = (State)next;
     }
