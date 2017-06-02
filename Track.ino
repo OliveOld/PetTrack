@@ -182,6 +182,7 @@ Sample Gavg;
 LPF3A filter;
 Window win;
 
+u16 weights[Postures];
 i32 avg_norm[Postures];
 i32 dev_norm[Postures];
 i32 avg_sma[Postures];
@@ -477,22 +478,55 @@ uint32_t load(uint8_t pos, uint8_t attr)
     return -1;
 }
 
-void *OnMonitor(); // White
-void *OnTrain();   // Red
-void *OnSync();    // Green
-void *OnReport();  // Blue
-void *OnConnect();
-void *OnDisconnect();
+// ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- ----
+
+void *OnMonitor();      // White
+void *OnTrain();        // Red
+void *OnSync();         // Green
+void *OnReport();       // Blue
+void *OnConnect();      // -
+void *OnDisconnect();   // Yellow
+
+void *OnMonitor()
+{
+    timer.reset();
+    Bean.setLed(150, 150, 150);    // White
+
+    measure(); // Read acceleration
+    preproc(); // Filtering
+
+    // LA -> Posture
+    Sample *pacc = &filter.la;
+    u8 p = posture(pacc->x, pacc->y, pacc->z);
+
+    // if static posture,
+    if (p == P_Lie)
+    {
+        // calculate angle
+        pacc = &filter.g;
+        float angle = orientation(pacc->x, pacc->y, pacc->z);
+        angle = abs(angle);
+
+        if (angle > 40)
+            p = P_LieSide;
+        else if (angle > 90)
+            p = P_LieBack;
+    }
+
+    // Record (Posture, Millisecond)
+    record(p, timer.pick());
+
+    if (Bean.getConnectionState())
+        return (PTR)OnConnect;
+    else
+        return (PTR)OnMonitor;
+}
 
 void *OnTrain()
 {
-    // Red
-    Bean.setLed(150, 0, 0);
-
-    // wait parameter
-    // !!! This line might cause significant delay (timeout)
-    waitParam();
-
+    Bean.setLed(150, 0, 0);    // Red
+    // Read parameter synchronously
+    pack.param = Serial.read();
     // check posture
     u8 p = pos(pack.param);
 
@@ -501,18 +535,32 @@ void *OnTrain()
     preproc();
 
     Sample la = filter.la;
-
     u32 norm = magnitude(la.x, la.y, la.z);
-    avg_norm[p] = (avg_norm[p] + norm) / 2; // EWMA
 
-    if (isStatic(p))
-    {
-        Sample g = filter.g;
-        Gavg.x = (g.x + Gavg.x) / 2;
-        Gavg.y = (g.y + Gavg.y) / 2;
-        Gavg.z = (g.z + Gavg.z) / 2;
+    // Current weight for this posture
+    const u16 Weight = weights[p];
+    // Weight's upper bound == 512
+    if(Weight < 511){
+        weights[p] += 1;
     }
 
+    // Update the average of Magnitude     
+    avg_norm[p] = ((avg_norm[p] * Weight) + norm) / (Weight + 1); 
+
+    // For static postures, train gravity vector
+    if (p == P_Lie || p == P_Sit || p == P_Stand)
+    {
+        Sample g = filter.g;
+        Gavg.x = ((g.x * Weight) + Gavg.x) / (Weight + 1);
+        Gavg.y = ((g.y * Weight) + Gavg.x) / (Weight + 1);
+        Gavg.z = ((g.z * Weight) + Gavg.x) / (Weight + 1);
+    }
+
+    win.emplace(la.x, la.y, la.z);
+    u32 area = win.SMA();
+    // Update the average of SMA 
+    avg_sma[p] = ((avg_sma[p] * Weight) + area) / (Weight + 1); 
+    
     // Process done, send ack.
     writePrefix();
     writeParam();
@@ -522,15 +570,12 @@ void *OnTrain()
 
 void *OnSync()
 {
-    // Green
-    Bean.setLed(0, 150, 0);
+    Bean.setLed(0, 150, 0);    // Green
 
     // wait parameter and message's value
     if (waitParam() == false && waitValue() == false)
-    {
         // Failed -> Disconnect!
         return (PTR)OnDisconnect;
-    }
 
     // check posture and attribute
     u8 p = pos(pack.param);
@@ -548,15 +593,13 @@ void *OnSync()
 
 void *OnReport()
 {
-    // Blue
-    Bean.setLed(0, 0, 150);
+    Bean.setLed(0, 0, 150);    // Blue
 
     // wait parameter
+    // if failed -> Disconnect
     if (waitParam() == false)
-    {
-        // Failed -> Disconnect!
         return (PTR)OnDisconnect;
-    }
+
     // check posture and attribute
     u8 p = pos(pack.param);
     u8 a = attr(pack.param);
@@ -572,76 +615,28 @@ void *OnReport()
     return (PTR)OnConnect;
 }
 
-void *OnMonitor()
-{
-    timer.reset();
-    // White
-    Bean.setLed(150, 150, 150);
-
-    measure(); // Read acceleration
-    preproc(); // Filtering
-
-    // LA -> Posture
-    Sample *pacc = &filter.la;
-    u8 p = posture(pacc->x, pacc->y, pacc->z);
-
-    // if static posture,
-    if (isStatic(p) == true)
-    {
-        // calculate angle
-        pacc = &filter.g;
-        float angle = orientation(pacc->x, pacc->y, pacc->z);
-        angle = abs(angle);
-
-        if (angle > 40)
-        {
-            p = P_LieSide;
-        }
-        else if (angle > 90)
-        {
-            p = P_LieBack;
-        }
-    }
-
-    // Record (Posture, Millisecond)
-    record(p, timer.reset());
-
-    if (Bean.getConnectionState())
-    {
-        return (PTR)OnConnect;
-    }
-    else
-        return (PTR)OnMonitor;
-}
-
 void *OnConnect()
 {
     // If not connected, go back to `OnMonitor`
     if (Bean.getConnectionState() == false)
-    {
         return (PTR)OnMonitor;
-    }
     // Timeout, disconnect.
     if (waitPrefix() == false)
-    {
         return (PTR)OnDisconnect;
-    }
 
     switch (pack.prefix)
     {
-    case OP_Sync:
-        return (PTR)OnSync;
-    case OP_Report:
-        return (PTR)OnSync;
-    case OP_Train:
-        return (PTR)OnSync;
-    default:
-        return (PTR)OnDisconnect;
+    case OP_Sync:       return (PTR)OnSync;
+    case OP_Report:     return (PTR)OnSync;
+    case OP_Train:      return (PTR)OnSync;
+    default:            return (PTR)OnDisconnect;
     }
 }
 
 void *OnDisconnect()
 {
+    Bean.setLed(150, 150, 0);   // Yellow
+ 
     // Explicit disconnection
     if (Bean.getConnectionState())
     {
@@ -688,13 +683,14 @@ void loop()
 {
     if (state)
     {
+        Bean.setLed(0,0,0);
         PTR next = (*state)();
         state = (State)next;
     }
-    // Warning: Yellow!
+    // Warning: Strong purple!
     else
     {
-        Bean.setLed(255, 255, 0);
+        Bean.setLed(255, 0, 255);
         Bean.sleep(1000);
     }
 }
