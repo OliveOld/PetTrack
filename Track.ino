@@ -298,11 +298,17 @@ uint8_t posture(int x, int y, int z)
 
     // Distances: SMA + Norm
     u32 distances[5];
-    distances[0] = abs(norm - avg_norm[P_Lie]) + abs(sma - avg_sma[P_Lie]);
-    distances[1] = abs(norm - avg_norm[P_Sit]) + abs(sma - avg_sma[P_Sit]);
-    distances[2] = abs(norm - avg_norm[P_Stand]) + abs(sma - avg_sma[P_Stand]);
-    distances[3] = abs(norm - avg_norm[P_Walk]) + abs(sma - avg_sma[P_Walk]);
-    distances[4] = abs(norm - avg_norm[P_Run] + abs(sma - avg_sma[P_Run]));
+    distances[0] = abs(norm - avg_norm[P_Lie]) / dev_norm[P_Lie];
+    distances[1] = abs(norm - avg_norm[P_Sit]) / dev_norm[P_Sit];
+    distances[2] = abs(norm - avg_norm[P_Stand]) / dev_norm[P_Stand];
+    distances[3] = abs(norm - avg_norm[P_Walk]) / dev_norm[P_Walk];
+    distances[4] = abs(norm - avg_norm[P_Run]) / dev_norm[P_Run];
+
+    distances[0] += abs(sma - avg_sma[P_Lie]) / dev_sma[P_Lie];
+    distances[1] += abs(sma - avg_sma[P_Sit]) / dev_sma[P_Sit];
+    distances[2] += abs(sma - avg_sma[P_Stand]) / dev_sma[P_Stand];
+    distances[3] += abs(sma - avg_sma[P_Walk]) / dev_sma[P_Walk];
+    distances[4] += abs(sma - avg_sma[P_Run]) / dev_sma[P_Run];
 
     // Find minimum
     u32 min = (u32)-1;
@@ -552,8 +558,16 @@ void *OnTrain()
             weights[p] += 1;
         }
 
+        double var;
+        double stdev;
         // Update the average of Magnitude
         avg_norm[p] = ((avg_norm[p] * Weight) + norm) / (Weight + 1);
+        // Update the stdev of Magnitude
+        var = dev_norm[p] * dev_norm[p];
+        var += abs(avg_norm[p] - norm);
+        var /= (Weight + 1);
+        stdev = sqrt(var);
+        dev_norm[p] = (i32)stdev;
 
         // For static postures, train gravity vector
         if (p == P_Lie || p == P_Sit || p == P_Stand)
@@ -568,6 +582,12 @@ void *OnTrain()
         u32 area = win.SMA();
         // Update the average of SMA
         avg_sma[p] = ((avg_sma[p] * Weight) + area) / (Weight + 1);
+        // Update the stdev of SMA
+        var = dev_sma[p] * dev_sma[p];
+        var += abs(avg_sma[p] - area);
+        var /= (Weight + 1);
+        stdev = sqrt(var);
+        dev_sma[p] = (i32)stdev;
 
         // Process done, send ack.
         writePrefix();
@@ -584,8 +604,8 @@ void *OnSync()
     Bean.setLed(0, 150, 0); // Green
 
     // wait parameter and message's value
+    // Failed -> Disconnect!
     if (waitParam() == false && waitValue() == false)
-        // Failed -> Disconnect!
         return (PTR)OnDisconnect;
 
     // check posture and attribute
@@ -640,9 +660,9 @@ void *OnConnect()
     case OP_Sync:
         return (PTR)OnSync;
     case OP_Report:
-        return (PTR)OnSync;
+        return (PTR)OnReport;
     case OP_Train:
-        return (PTR)OnSync;
+        return (PTR)OnTrain;
     default:
         return (PTR)OnDisconnect;
     }
@@ -673,7 +693,6 @@ void *OnDisconnect()
 void setup()
 {
     // Clear variables
-    timer.reset();
     ma.x = ma.y = ma.z = 0;
     Gavg.x = Gavg.y = Gavg.z = 0;
 
@@ -682,6 +701,7 @@ void setup()
         avg_norm[i] = dev_norm[i] = 0;
         avg_sma[i] = dev_sma[i] = 0;
         times[i] = 0;
+        weights[i] = 0;
     }
     pack.prefix = 0;
     pack.param = param(P_Unknown, A_Mean);
@@ -705,7 +725,7 @@ void loop()
     // Warning: Strong purple!
     else
     {
-        Bean.setLed(255, 0, 255);
-        Bean.sleep(1000);
+        // Initial state function
+        state = (State)OnMonitor;
     }
 }
