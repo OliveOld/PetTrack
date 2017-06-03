@@ -604,8 +604,8 @@ void *OnSync()
     Bean.setLed(0, 150, 0); // Green
 
     // wait parameter and message's value
+    // Failed -> Disconnect!
     if (waitParam() == false && waitValue() == false)
-        // Failed -> Disconnect!
         return (PTR)OnDisconnect;
 
     // check posture and attribute
@@ -660,9 +660,9 @@ void *OnConnect()
     case OP_Sync:
         return (PTR)OnSync;
     case OP_Report:
-        return (PTR)OnSync;
+        return (PTR)OnReport;
     case OP_Train:
-        return (PTR)OnSync;
+        return (PTR)OnTrain;
     default:
         return (PTR)OnDisconnect;
     }
@@ -693,7 +693,6 @@ void *OnDisconnect()
 void setup()
 {
     // Clear variables
-    timer.reset();
     ma.x = ma.y = ma.z = 0;
     Gavg.x = Gavg.y = Gavg.z = 0;
 
@@ -702,6 +701,7 @@ void setup()
         avg_norm[i] = dev_norm[i] = 0;
         avg_sma[i] = dev_sma[i] = 0;
         times[i] = 0;
+        weights[i] = 0;
     }
     pack.prefix = 0;
     pack.param = param(P_Unknown, A_Mean);
@@ -725,7 +725,7 @@ void loop()
     // Warning: Strong purple!
     else
     {
-        Bean.setLed(255, 0, 255);
-        Bean.sleep(1000);
+        // Initial state function
+        state = (State)OnMonitor;
     }
 }
